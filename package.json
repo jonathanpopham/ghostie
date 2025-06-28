@@ -1,6 +1,6 @@
 {
   "name": "ghostie",
-  "version": "1.2.1",
+  "version": "1.2.2",
   "description": "👻 Ghost in the Shell - AI personality loader and memory management system for Claude Code",
   "main": "bin/ghostie.js",
   "bin": {
@@ -48,13 +48,5 @@
     "README_GHOSTIE.md"
   ],
   "dependencies": {},
-  "devDependencies": {},
-  "os": [
-    "linux",
-    "darwin"
-  ],
-  "cpu": [
-    "arm64",
-    "x64"
-  ]
+  "devDependencies": {}
 }
