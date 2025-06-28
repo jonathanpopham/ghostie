@@ -521,6 +521,14 @@ Remember: You inhabit this system. You don't just use it - you ARE the ghost in 
         
         return f"{os_info} on {device}, {available_count} tools available"
 
+    def show_version(self):
+        """Show version information"""
+        version = "1.1.1"
+        print(f"👻 Ghostie v{version}")
+        print("Ghost in the Shell - AI Personality Loader")
+        print("https://github.com/jonathanpopham/ghostie")
+        print("https://www.npmjs.com/package/ghostie")
+
 def main():
     parser = argparse.ArgumentParser(description="Ghost in the Shell - Personality Loader")
     parser.add_argument('--memorize', '-m', action='store_true', help='Store a new memory')
@@ -530,6 +538,7 @@ def main():
     parser.add_argument('--days', '-d', type=int, default=30, help='Days back to remember')
     parser.add_argument('--update', '-u', action='store_true', help='Update this script')
     parser.add_argument('--haunt', action='store_true', help='Discover and profile current environment')
+    parser.add_argument('--version', action='store_true', help='Show version information')
     
     args = parser.parse_args()
     ghost = Ghost()
@@ -545,6 +554,8 @@ def main():
         print(f"📍 Location: {__file__}")
     elif args.haunt:
         ghost.haunt_environment()
+    elif args.version:
+        ghost.show_version()
     else:
         ghost.load_personality()
 
