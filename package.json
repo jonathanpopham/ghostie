@@ -1,0 +1,59 @@
+{
+  "name": "ghostie",
+  "version": "1.0.0",
+  "description": "👻 Ghost in the Shell - AI personality loader and memory management system for Claude Code",
+  "main": "bin/ghostie.js",
+  "bin": {
+    "ghostie": "./bin/ghostie.js"
+  },
+  "scripts": {
+    "test": "node bin/ghostie.js --tools",
+    "postinstall": "chmod +x bin/ghostie.js"
+  },
+  "keywords": [
+    "ai",
+    "claude",
+    "personality",
+    "memory",
+    "termux", 
+    "ghost",
+    "shell",
+    "cli",
+    "assistant",
+    "automation"
+  ],
+  "author": {
+    "name": "Jonathan Popham",
+    "email": "jonathan.popham@gmail.com",
+    "url": "https://github.com/jonathanpopham"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/jonathanpopham/ghostie.git"
+  },
+  "bugs": {
+    "url": "https://github.com/jonathanpopham/ghostie/issues"
+  },
+  "homepage": "https://github.com/jonathanpopham/ghostie#readme",
+  "engines": {
+    "node": ">=14.0.0"
+  },
+  "preferGlobal": true,
+  "files": [
+    "bin/",
+    "ghostie",
+    "README.md",
+    "README_GHOSTIE.md"
+  ],
+  "dependencies": {},
+  "devDependencies": {},
+  "os": [
+    "linux",
+    "darwin"
+  ],
+  "cpu": [
+    "arm64",
+    "x64"
+  ]
+}

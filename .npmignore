@@ -1,0 +1,26 @@
+# NPM ignore file for ghostie package
+
+# Git files
+.git/
+.gitignore
+
+# Development files
+*.log
+node_modules/
+.npm/
+.node_repl_history
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Memory files (user-specific)
+memories/
+
+# Test files
+test/
+tests/
+
+# Temporary files
+*.tmp
+*.temp
