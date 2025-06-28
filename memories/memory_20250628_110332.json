@@ -1,9 +1,0 @@
-{
-  "timestamp": "2025-06-28T11:03:32.934470",
-  "category": "system",
-  "content": "Successfully published ghostie@1.0.0 to npm registry. Package available globally via 'npm install -g ghostie'. Created Node.js wrapper for cross-platform compatibility. Repository updated on GitHub.",
-  "context": {
-    "pwd": "/data/data/com.termux/files/home",
-    "network_status": ""
-  }
-}
