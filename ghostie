@@ -265,6 +265,11 @@ Remember: You inhabit this system. You don't just use it - you ARE the ghost in 
 
     def load_personality(self):
         """Load the ghost personality into context"""
+        # Check if this is first run
+        if self._is_first_run():
+            self._interactive_setup()
+            return
+        
         print("👻 LOADING GHOST PERSONALITY...")
         print("=" * 50)
         print(self.get_system_prompt())
@@ -279,7 +284,308 @@ Remember: You inhabit this system. You don't just use it - you ARE the ghost in 
             print(f"\n🧠 {len(recent_memories)} recent memories loaded")
         
         print("\n👻 Ghost personality loaded. I adapt to this digital realm.")
-        print("💡 First time? Run 'ghostie --haunt' to discover your environment!")
+
+    def _is_first_run(self):
+        """Check if this is the first time ghostie is being run"""
+        config_file = self.home / ".ghostie" / "config.json"
+        return not config_file.exists()
+
+    def _interactive_setup(self):
+        """Interactive first-run setup experience"""
+        print("👻 WELCOME TO THE GHOST IN THE SHELL! 👻")
+        print("=" * 50)
+        print("🎉 First time here? Let me help you set up your digital realm!\n")
+        
+        # Environment discovery first
+        print("🔍 STEP 1: Environment Discovery")
+        print("Let me analyze your system to understand what we're working with...")
+        env_profile = self.haunt_environment()
+        print()
+        
+        # Parse environment for smart defaults
+        system_info = env_profile["system"]
+        tools_info = env_profile["tools"]
+        is_termux = system_info.get("environment") == "Termux on Android"
+        is_macos = system_info.get("os") == "Darwin"
+        is_linux = system_info.get("os") == "Linux" and not is_termux
+        
+        # Check if running in non-interactive mode (no stdin)
+        try:
+            import sys
+            if not sys.stdin.isatty():
+                print("🤖 Non-interactive mode detected - using smart defaults...")
+                setup_prefs = self._get_smart_defaults(is_termux, is_macos, is_linux)
+            else:
+                # Setup wizard
+                print("🔧 STEP 2: Interactive Setup")
+                print("I'll ask a few questions to customize your experience.\n")
+                
+                # Ask about setup preferences
+                setup_prefs = self._get_setup_preferences(is_termux, is_macos, is_linux)
+        except:
+            # Fallback to smart defaults if stdin detection fails
+            print("🤖 Using smart defaults for this environment...")
+            setup_prefs = self._get_smart_defaults(is_termux, is_macos, is_linux)
+        
+        # Execute setup based on preferences
+        if setup_prefs["network_exploration"]:
+            self._setup_network_exploration(env_profile)
+        
+        if setup_prefs["memory_location"]:
+            self._setup_memory_location()
+        
+        if setup_prefs["terminal_rice"]:
+            self._setup_terminal_rice(is_termux, is_macos, is_linux)
+        
+        if setup_prefs["install_tools"]:
+            self._setup_tools_installation(is_termux, is_macos, is_linux, tools_info)
+        
+        # Save configuration
+        self._save_setup_config(setup_prefs, env_profile)
+        
+        print("\n🎉 SETUP COMPLETE!")
+        print("👻 The Ghost is now configured for your system.")
+        print("💡 Run 'ghostie' again to load the full personality.")
+        print("📚 Use 'ghostie --help' to see all available commands.")
+
+    def _get_setup_preferences(self, is_termux, is_macos, is_linux):
+        """Get user preferences for setup with smart defaults"""
+        print("📋 Setup Preferences (press Enter for recommended defaults):\n")
+        
+        prefs = {}
+        
+        # Network exploration
+        default_network = "y" if any([is_termux, is_linux]) else "n"
+        response = input(f"🌐 Explore network topology and scan for devices? [{default_network}/n/yes-to-all]: ").lower().strip()
+        if response == "yes-to-all":
+            return self._yes_to_all_setup()
+        prefs["network_exploration"] = response in ["y", "yes", ""] and default_network == "y"
+        
+        # Memory location
+        default_memory = "y"
+        response = input(f"🧠 Configure custom memory storage location? [y/n]: ").lower().strip()
+        prefs["memory_location"] = response in ["y", "yes", ""]
+        
+        # Terminal ricing
+        default_rice = "y" if is_termux else "n"
+        response = input(f"✨ Install terminal customizations (zsh, tmux, modern tools)? [{default_rice}/n]: ").lower().strip()
+        prefs["terminal_rice"] = response in ["y", "yes", ""] and default_rice == "y"
+        
+        # Tool installation
+        default_tools = "y"
+        response = input(f"🔧 Install/update security and development tools? [y/n]: ").lower().strip()
+        prefs["install_tools"] = response in ["y", "yes", ""]
+        
+        return prefs
+
+    def _yes_to_all_setup(self):
+        """Return preferences for 'yes to all' setup"""
+        print("🚀 YES TO ALL! Setting up complete Ghost environment...\n")
+        return {
+            "network_exploration": True,
+            "memory_location": True,
+            "terminal_rice": True,
+            "install_tools": True
+        }
+
+    def _get_smart_defaults(self, is_termux, is_macos, is_linux):
+        """Return smart default preferences based on detected environment"""
+        defaults = {
+            "network_exploration": is_termux or is_linux,  # More likely to want network scanning on mobile/linux
+            "memory_location": False,  # Use default location in non-interactive mode
+            "terminal_rice": is_termux,  # Rice terminal on Termux by default
+            "install_tools": True  # Always suggest tool installation
+        }
+        
+        print("🎯 Smart defaults applied:")
+        print(f"   • Network exploration: {'✓' if defaults['network_exploration'] else '✗'}")
+        print(f"   • Custom memory location: {'✓' if defaults['memory_location'] else '✗'}")
+        print(f"   • Terminal customization: {'✓' if defaults['terminal_rice'] else '✗'}")
+        print(f"   • Tool installation: {'✓' if defaults['install_tools'] else '✗'}")
+        print()
+        
+        return defaults
+
+    def _setup_network_exploration(self, env_profile):
+        """Set up network exploration and scanning"""
+        print("🌐 NETWORK EXPLORATION SETUP")
+        print("-" * 30)
+        
+        network = env_profile["network"]
+        if "interfaces_raw" in network:
+            print("✅ Network interfaces discovered")
+            
+            # Check for common private networks
+            common_networks = ["192.168.", "10.", "172.16.", "172.17.", "172.18."]
+            print("🔍 Detected private networks:")
+            
+            for line in network["interfaces_raw"].split('\n'):
+                for net in common_networks:
+                    if net in line and "inet " in line:
+                        print(f"   • {line.strip()}")
+            
+            print("\n💡 Use 'nmap -sn <network>/24' to scan for devices")
+            print("💡 Use 'ghostie --remember' to store interesting findings")
+        
+        print("✅ Network exploration configured\n")
+
+    def _setup_memory_location(self):
+        """Configure memory storage location"""
+        print("🧠 MEMORY STORAGE SETUP")
+        print("-" * 30)
+        
+        default_location = str(self.memory_dir)
+        print(f"📁 Default location: {default_location}")
+        
+        try:
+            import sys
+            if sys.stdin.isatty():
+                custom = input("🔧 Use custom location? [n/path]: ").strip()
+                if custom and custom != "n":
+                    try:
+                        custom_path = Path(custom).expanduser()
+                        custom_path.mkdir(parents=True, exist_ok=True)
+                        self.memory_dir = custom_path
+                        print(f"✅ Memory location set to: {custom_path}")
+                    except Exception as e:
+                        print(f"❌ Error setting custom path: {e}")
+                        print(f"📁 Using default: {default_location}")
+                else:
+                    print(f"✅ Using default memory location")
+            else:
+                print(f"✅ Using default memory location (non-interactive mode)")
+        except:
+            print(f"✅ Using default memory location")
+        
+        print()
+
+    def _setup_terminal_rice(self, is_termux, is_macos, is_linux):
+        """Set up terminal customizations"""
+        print("✨ TERMINAL CUSTOMIZATION SETUP")
+        print("-" * 30)
+        
+        if is_termux:
+            print("📱 Termux detected - installing mobile-optimized setup...")
+            self._install_termux_rice()
+        elif is_macos:
+            print("🍎 macOS detected - suggesting Homebrew-based setup...")
+            self._suggest_macos_rice()
+        elif is_linux:
+            print("🐧 Linux detected - suggesting package manager setup...")
+            self._suggest_linux_rice()
+        else:
+            print("❓ Unknown system - providing generic suggestions...")
+            self._suggest_generic_rice()
+        
+        print()
+
+    def _install_termux_rice(self):
+        """Install Termux terminal customizations"""
+        import subprocess
+        
+        packages = ["zsh", "tmux", "neovim", "git", "curl", "wget", "nmap", "netcat-openbsd"]
+        
+        print("📦 Installing essential packages...")
+        try:
+            # Update package list
+            subprocess.run(["pkg", "update"], check=True, capture_output=True)
+            
+            # Install packages
+            subprocess.run(["pkg", "install", "-y"] + packages, check=True, capture_output=True)
+            print("✅ Essential packages installed")
+            
+            # Install Oh My Zsh if not present
+            if not Path.home().joinpath(".oh-my-zsh").exists():
+                print("🎨 Installing Oh My Zsh...")
+                subprocess.run([
+                    "sh", "-c", 
+                    "$(curl -fsSL https://raw.github.com/ohmyzsh/ohmyzsh/master/tools/install.sh)"
+                ], check=True, capture_output=True)
+                print("✅ Oh My Zsh installed")
+            
+        except subprocess.CalledProcessError as e:
+            print(f"⚠️ Some packages failed to install: {e}")
+        except Exception as e:
+            print(f"❌ Installation error: {e}")
+
+    def _suggest_macos_rice(self):
+        """Suggest macOS terminal setup"""
+        print("📝 Recommended macOS setup:")
+        print("   brew install zsh tmux neovim git curl wget nmap netcat")
+        print("   brew install eza bat ripgrep fd fzf htop")
+        print("   sh -c \"$(curl -fsSL https://raw.github.com/ohmyzsh/ohmyzsh/master/tools/install.sh)\"")
+        print("💡 Run these commands in your terminal after ghostie setup")
+
+    def _suggest_linux_rice(self):
+        """Suggest Linux terminal setup"""
+        print("📝 Recommended Linux setup:")
+        print("   # Ubuntu/Debian:")
+        print("   sudo apt update && sudo apt install zsh tmux neovim git curl wget nmap netcat")
+        print("   # Arch Linux:")
+        print("   sudo pacman -S zsh tmux neovim git curl wget nmap openbsd-netcat")
+        print("   # Install Oh My Zsh:")
+        print("   sh -c \"$(curl -fsSL https://raw.github.com/ohmyzsh/ohmyzsh/master/tools/install.sh)\"")
+        print("💡 Choose commands based on your distribution")
+
+    def _suggest_generic_rice(self):
+        """Suggest generic terminal setup"""
+        print("📝 Recommended tools to install:")
+        print("   • zsh + Oh My Zsh (enhanced shell)")
+        print("   • tmux (terminal multiplexer)")
+        print("   • neovim (modern text editor)")
+        print("   • git, curl, wget (essential tools)")
+        print("   • nmap, netcat (network tools)")
+        print("   • eza, bat, ripgrep, fd, fzf (modern CLI tools)")
+
+    def _setup_tools_installation(self, is_termux, is_macos, is_linux, tools_info):
+        """Set up additional tools based on environment"""
+        print("🔧 TOOLS INSTALLATION")
+        print("-" * 30)
+        
+        available_tools = [tool for tool, info in tools_info.items() if info.get("available")]
+        missing_tools = ["python3", "git", "curl", "nmap", "netcat"]
+        needed_tools = [tool for tool in missing_tools if tool not in available_tools]
+        
+        if not needed_tools:
+            print("✅ All essential tools already available!")
+        else:
+            print(f"📦 Missing tools: {', '.join(needed_tools)}")
+            
+            if is_termux:
+                install_cmd = f"pkg install -y {' '.join(needed_tools)}"
+            elif is_macos:
+                install_cmd = f"brew install {' '.join(needed_tools)}"
+            elif is_linux:
+                install_cmd = f"sudo apt install -y {' '.join(needed_tools)}  # or equivalent for your distro"
+            else:
+                install_cmd = f"# Install these tools using your system's package manager: {' '.join(needed_tools)}"
+            
+            print(f"💡 Install command: {install_cmd}")
+        
+        print()
+
+    def _save_setup_config(self, preferences, env_profile):
+        """Save setup configuration for future reference"""
+        config_dir = self.home / ".ghostie"
+        config_dir.mkdir(exist_ok=True)
+        
+        config = {
+            "version": "1.2.0",
+            "setup_completed": True,
+            "setup_date": datetime.datetime.now().isoformat(),
+            "preferences": preferences,
+            "environment": {
+                "os": env_profile["system"].get("os"),
+                "environment": env_profile["system"].get("environment"),
+                "detected_tools": len([t for t in env_profile["tools"].values() if t.get("available")])
+            }
+        }
+        
+        config_file = config_dir / "config.json"
+        with open(config_file, 'w') as f:
+            json.dump(config, f, indent=2)
+        
+        print(f"💾 Configuration saved to: {config_file}")
 
     def haunt_environment(self):
         """Discover and profile the current environment"""
@@ -522,7 +828,7 @@ Remember: You inhabit this system. You don't just use it - you ARE the ghost in 
 
     def show_version(self):
         """Show version information"""
-        version = "1.1.2"
+        version = "1.2.0"
         print(f"👻 Ghostie v{version}")
         print("Ghost in the Shell - AI Personality Loader")
         print("https://github.com/jonathanpopham/ghostie")
