@@ -91,6 +91,7 @@ Usage:
     ghostie --memorize      # Store a memory with timestamp
     ghostie --remember      # Recall relevant memories  
     ghostie --tools         # List available tools and capabilities
+    ghostie --haunt         # Discover and profile current environment
     ghostie --update        # Update this script with new tools/memories
 
 Requirements:

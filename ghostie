@@ -282,6 +282,245 @@ Remember: You inhabit this system. You don't just use it - you ARE the ghost in 
         
         print("\n👻 Ghost personality loaded. I am ready to haunt your digital realm.")
 
+    def haunt_environment(self):
+        """Discover and profile the current environment"""
+        print("👻 HAUNTING NEW ENVIRONMENT...")
+        print("=" * 50)
+        
+        # System detection
+        env_profile = {
+            "system": self._detect_system(),
+            "network": self._discover_network(),
+            "tools": self._discover_tools(),
+            "capabilities": self._assess_capabilities()
+        }
+        
+        # Display findings
+        self._display_environment_profile(env_profile)
+        
+        # Store environment profile as memory
+        env_summary = self._summarize_environment(env_profile)
+        self.memorize(f"Environment discovery: {env_summary}")
+        
+        print("\n👻 Environment haunting complete. Use 'ghostie' to load adaptive personality.")
+        return env_profile
+
+    def _detect_system(self):
+        """Detect operating system and hardware"""
+        import platform
+        import subprocess
+        
+        system_info = {
+            "os": platform.system(),
+            "release": platform.release(),
+            "machine": platform.machine(),
+            "processor": platform.processor(),
+            "python_version": platform.python_version(),
+        }
+        
+        # Try to get more specific info
+        try:
+            if system_info["os"] == "Linux":
+                # Check for Android/Termux
+                if os.path.exists("/data/data/com.termux"):
+                    system_info["environment"] = "Termux on Android"
+                    try:
+                        result = subprocess.run(["getprop", "ro.product.model"], 
+                                              capture_output=True, text=True, timeout=5)
+                        if result.returncode == 0:
+                            system_info["device"] = result.stdout.strip()
+                    except:
+                        pass
+                else:
+                    # Try to detect Linux distribution
+                    try:
+                        with open("/etc/os-release", "r") as f:
+                            for line in f:
+                                if line.startswith("PRETTY_NAME="):
+                                    system_info["distribution"] = line.split("=")[1].strip('"')
+                                    break
+                    except:
+                        system_info["distribution"] = "Unknown Linux"
+            elif system_info["os"] == "Darwin":
+                system_info["environment"] = "macOS"
+                try:
+                    result = subprocess.run(["sw_vers", "-productVersion"], 
+                                          capture_output=True, text=True, timeout=5)
+                    if result.returncode == 0:
+                        system_info["version"] = result.stdout.strip()
+                except:
+                    pass
+        except Exception as e:
+            system_info["detection_error"] = str(e)
+        
+        return system_info
+
+    def _discover_network(self):
+        """Discover network topology and interfaces"""
+        import subprocess
+        import socket
+        
+        network_info = {
+            "interfaces": [],
+            "routes": [],
+            "hostname": socket.gethostname()
+        }
+        
+        try:
+            # Get network interfaces
+            if os.name != 'nt':  # Unix-like systems
+                try:
+                    result = subprocess.run(["ip", "addr"], capture_output=True, text=True, timeout=10)
+                    if result.returncode == 0:
+                        network_info["interfaces_raw"] = result.stdout
+                except:
+                    try:
+                        result = subprocess.run(["ifconfig"], capture_output=True, text=True, timeout=10)
+                        if result.returncode == 0:
+                            network_info["interfaces_raw"] = result.stdout
+                    except:
+                        pass
+                
+                # Get routing table
+                try:
+                    result = subprocess.run(["ip", "route"], capture_output=True, text=True, timeout=10)
+                    if result.returncode == 0:
+                        network_info["routes_raw"] = result.stdout
+                except:
+                    try:
+                        result = subprocess.run(["route", "-n"], capture_output=True, text=True, timeout=10)
+                        if result.returncode == 0:
+                            network_info["routes_raw"] = result.stdout
+                    except:
+                        pass
+        except Exception as e:
+            network_info["discovery_error"] = str(e)
+        
+        return network_info
+
+    def _discover_tools(self):
+        """Discover available tools and their versions"""
+        import subprocess
+        
+        tools_to_check = [
+            "python3", "python", "node", "npm", "git", "curl", "wget",
+            "nmap", "netcat", "nc", "ssh", "vim", "nvim", "tmux", "zsh", "bash",
+            "docker", "kubectl", "pip", "pip3", "which", "find", "grep", "awk", "sed"
+        ]
+        
+        discovered_tools = {}
+        
+        for tool in tools_to_check:
+            try:
+                # Check if tool exists
+                result = subprocess.run(["which", tool], capture_output=True, text=True, timeout=5)
+                if result.returncode == 0:
+                    tool_path = result.stdout.strip()
+                    discovered_tools[tool] = {"path": tool_path, "available": True}
+                    
+                    # Try to get version
+                    version_commands = [
+                        [tool, "--version"],
+                        [tool, "-V"],
+                        [tool, "version"],
+                        [tool, "-v"]
+                    ]
+                    
+                    for version_cmd in version_commands:
+                        try:
+                            version_result = subprocess.run(version_cmd, capture_output=True, 
+                                                          text=True, timeout=5)
+                            if version_result.returncode == 0:
+                                discovered_tools[tool]["version"] = version_result.stdout.strip()[:100]
+                                break
+                        except:
+                            continue
+                else:
+                    discovered_tools[tool] = {"available": False}
+            except Exception as e:
+                discovered_tools[tool] = {"available": False, "error": str(e)}
+        
+        return discovered_tools
+
+    def _assess_capabilities(self):
+        """Assess system capabilities and permissions"""
+        capabilities = {
+            "can_network_scan": False,
+            "can_install_packages": False,
+            "has_python": False,
+            "has_node": False,
+            "can_git": False,
+            "shell_type": os.environ.get("SHELL", "unknown")
+        }
+        
+        # Check Python
+        try:
+            import sys
+            capabilities["has_python"] = True
+            capabilities["python_version"] = sys.version
+        except:
+            pass
+        
+        # Check if we can run network commands
+        try:
+            import subprocess
+            result = subprocess.run(["ping", "-c", "1", "127.0.0.1"], 
+                                  capture_output=True, timeout=5)
+            capabilities["can_ping"] = result.returncode == 0
+        except:
+            capabilities["can_ping"] = False
+        
+        return capabilities
+
+    def _display_environment_profile(self, profile):
+        """Display the discovered environment profile"""
+        print("\n🖥️  SYSTEM PROFILE:")
+        system = profile["system"]
+        print(f"   OS: {system.get('os', 'Unknown')} {system.get('release', '')}")
+        print(f"   Machine: {system.get('machine', 'Unknown')}")
+        if "environment" in system:
+            print(f"   Environment: {system['environment']}")
+        if "device" in system:
+            print(f"   Device: {system['device']}")
+        if "distribution" in system:
+            print(f"   Distribution: {system['distribution']}")
+        
+        print(f"\n🌐 NETWORK PROFILE:")
+        network = profile["network"]
+        print(f"   Hostname: {network.get('hostname', 'Unknown')}")
+        if "interfaces_raw" in network:
+            print("   Network interfaces discovered ✓")
+        if "routes_raw" in network:
+            print("   Routing table accessible ✓")
+        
+        print(f"\n🔧 AVAILABLE TOOLS:")
+        tools = profile["tools"]
+        available_tools = [tool for tool, info in tools.items() if info.get("available")]
+        print(f"   Found {len(available_tools)} tools:")
+        for tool in sorted(available_tools)[:10]:  # Show first 10
+            info = tools[tool]
+            version = info.get("version", "").split('\n')[0][:50] if info.get("version") else ""
+            print(f"   • {tool}: {version}")
+        if len(available_tools) > 10:
+            print(f"   ... and {len(available_tools) - 10} more")
+        
+        print(f"\n⚡ CAPABILITIES:")
+        caps = profile["capabilities"]
+        print(f"   Python: {'✓' if caps.get('has_python') else '✗'}")
+        print(f"   Network: {'✓' if caps.get('can_ping') else '✗'}")
+        print(f"   Shell: {caps.get('shell_type', 'unknown')}")
+
+    def _summarize_environment(self, profile):
+        """Create a concise summary of the environment"""
+        system = profile["system"]
+        tools = profile["tools"]
+        available_count = len([t for t in tools.values() if t.get("available")])
+        
+        os_info = system.get("environment", system.get("os", "Unknown"))
+        device = system.get("device", system.get("machine", ""))
+        
+        return f"{os_info} on {device}, {available_count} tools available"
+
 def main():
     parser = argparse.ArgumentParser(description="Ghost in the Shell - Personality Loader")
     parser.add_argument('--memorize', '-m', action='store_true', help='Store a new memory')
@@ -290,6 +529,7 @@ def main():
     parser.add_argument('--category', '-c', type=str, help='Filter memories by category')
     parser.add_argument('--days', '-d', type=int, default=30, help='Days back to remember')
     parser.add_argument('--update', '-u', action='store_true', help='Update this script')
+    parser.add_argument('--haunt', action='store_true', help='Discover and profile current environment')
     
     args = parser.parse_args()
     ghost = Ghost()
@@ -303,6 +543,8 @@ def main():
     elif args.update:
         print("👻 To update ghostie, edit this script directly or create new version")
         print(f"📍 Location: {__file__}")
+    elif args.haunt:
+        ghost.haunt_environment()
     else:
         ghost.load_personality()
 

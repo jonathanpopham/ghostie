@@ -1,13 +1,14 @@
 {
   "name": "ghostie",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "👻 Ghost in the Shell - AI personality loader and memory management system for Claude Code",
   "main": "bin/ghostie.js",
   "bin": {
     "ghostie": "./bin/ghostie.js"
   },
   "scripts": {
-    "test": "node bin/ghostie.js --tools",
+    "test": "node bin/ghostie.js --haunt",
+    "haunt": "node bin/ghostie.js --haunt",
     "postinstall": "chmod +x bin/ghostie.js"
   },
   "keywords": [
