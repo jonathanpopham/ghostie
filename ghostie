@@ -570,7 +570,7 @@ Remember: You inhabit this system. You don't just use it - you ARE the ghost in 
         config_dir.mkdir(exist_ok=True)
         
         config = {
-            "version": "1.2.0",
+            "version": "1.2.1",
             "setup_completed": True,
             "setup_date": datetime.datetime.now().isoformat(),
             "preferences": preferences,
@@ -828,7 +828,7 @@ Remember: You inhabit this system. You don't just use it - you ARE the ghost in 
 
     def show_version(self):
         """Show version information"""
-        version = "1.2.0"
+        version = "1.2.1"
         print(f"👻 Ghostie v{version}")
         print("Ghost in the Shell - AI Personality Loader")
         print("https://github.com/jonathanpopham/ghostie")
