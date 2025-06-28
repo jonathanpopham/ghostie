@@ -1,0 +1,133 @@
+name: 🚀 Release Ghostie
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+
+env:
+  NODE_VERSION: '18'
+  PYTHON_VERSION: '3.x'
+
+jobs:
+  test:
+    name: 🧪 Test Suite
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: 📥 Checkout Code
+      uses: actions/checkout@v4
+      
+    - name: 🐍 Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+        
+    - name: 📦 Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ env.NODE_VERSION }}
+        
+    - name: 🔧 Install Python Dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install cryptography requests
+        
+    - name: ✅ Test Ghostie Commands
+      run: |
+        chmod +x ghostie
+        python3 ghostie --version
+        python3 ghostie --help
+        python3 ghostie --tools
+        
+    - name: 📋 Test Node.js Wrapper
+      run: |
+        node bin/ghostie.js --help
+        node bin/ghostie.js --version
+
+  publish:
+    name: 📦 Publish to NPM
+    runs-on: ubuntu-latest
+    needs: test
+    if: github.ref == 'refs/heads/master' && github.event_name == 'push'
+    
+    steps:
+    - name: 📥 Checkout Code
+      uses: actions/checkout@v4
+      
+    - name: 📦 Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ env.NODE_VERSION }}
+        registry-url: https://registry.npmjs.org/
+        
+    - name: 🔍 Check if Version Changed
+      id: version-check
+      run: |
+        CURRENT_VERSION=$(node -p "require('./package.json').version")
+        PUBLISHED_VERSION=$(npm view ghostie version 2>/dev/null || echo "0.0.0")
+        echo "current=$CURRENT_VERSION" >> $GITHUB_OUTPUT
+        echo "published=$PUBLISHED_VERSION" >> $GITHUB_OUTPUT
+        
+        if [ "$CURRENT_VERSION" != "$PUBLISHED_VERSION" ]; then
+          echo "should_publish=true" >> $GITHUB_OUTPUT
+          echo "🆕 Version changed: $PUBLISHED_VERSION → $CURRENT_VERSION"
+        else
+          echo "should_publish=false" >> $GITHUB_OUTPUT
+          echo "⏭️ Version unchanged: $CURRENT_VERSION"
+        fi
+        
+    - name: 🚀 Publish to NPM
+      if: steps.version-check.outputs.should_publish == 'true'
+      run: |
+        echo "Publishing ghostie@${{ steps.version-check.outputs.current }}..."
+        npm publish
+        echo "✅ Published successfully!"
+      env:
+        NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        
+    - name: 🏷️ Create Git Tag
+      if: steps.version-check.outputs.should_publish == 'true'
+      run: |
+        VERSION="${{ steps.version-check.outputs.current }}"
+        git config --local user.email "action@github.com"
+        git config --local user.name "GitHub Action"
+        git tag -a "v$VERSION" -m "Release v$VERSION"
+        git push origin "v$VERSION"
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        
+    - name: 📝 Create GitHub Release
+      if: steps.version-check.outputs.should_publish == 'true'
+      uses: actions/create-release@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        tag_name: v${{ steps.version-check.outputs.current }}
+        release_name: 👻 Ghostie v${{ steps.version-check.outputs.current }}
+        body: |
+          ## 👻 Ghost in the Shell v${{ steps.version-check.outputs.current }}
+          
+          **Installation:**
+          ```bash
+          npm install -g ghostie@${{ steps.version-check.outputs.current }}
+          ```
+          
+          **Quick Start:**
+          ```bash
+          ghostie --haunt    # Discover environment
+          ghostie           # Load Ghost personality
+          ```
+          
+          **Changelog:**
+          See commit history for detailed changes.
+          
+          **Links:**
+          - 📦 [NPM Package](https://www.npmjs.com/package/ghostie)
+          - 📖 [Documentation](https://github.com/jonathanpopham/ghostie/blob/master/README.md)
+          - 🐛 [Report Issues](https://github.com/jonathanpopham/ghostie/issues)
+          
+          *The Ghost evolves... 👻✨*
+        draft: false
+        prerelease: false
