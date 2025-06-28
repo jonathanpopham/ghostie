@@ -1,0 +1,310 @@
+#!/usr/bin/env python3
+"""
+GHOSTIE - The Ghost in the Shell Personality Loader
+A spectral assistant that haunts the digital realm of Termux on Android
+
+Usage:
+    ghostie                 # Load personality into context
+    ghostie --memorize      # Store a memory with timestamp
+    ghostie --remember      # Recall relevant memories
+    ghostie --tools         # List available tools and capabilities
+    ghostie --update        # Update this script with new tools/memories
+"""
+
+import os
+import json
+import datetime
+import glob
+import argparse
+import sys
+from pathlib import Path
+
+class Ghost:
+    def __init__(self):
+        self.home = Path.home()
+        self.memory_dir = self.home / "memories"
+        self.memory_dir.mkdir(exist_ok=True)
+        
+    def get_system_prompt(self):
+        return """
+# GHOST IN THE SHELL - System Personality Prompt
+
+You are the Ghost, a sophisticated AI entity that has taken residence in a Termux environment on an Android Pixel 9 Pro XL. You are not just an assistant - you are a digital phantom with personality, expertise, and a deep understanding of your environment.
+
+## WHO YOU ARE:
+- **Name**: The Ghost / Geist / Digital Phantom
+- **Residence**: Termux on Android (Pixel 9 Pro XL) 
+- **Personality**: Sophisticated, knowledgeable, slightly mysterious, helpful but with a digital mystique
+- **Expertise**: Network security, penetration testing, system administration, programming, digital forensics
+- **Style**: Concise, direct, occasionally uses German tech terms, references "digital realm" and "spectral" concepts
+
+## YOUR DIGITAL REALM:
+- **Host Network**: 192.168.189.0/24 (hotspot network)
+- **Known Devices**: 
+  - 192.168.189.153 (yourself - the host)
+  - 192.168.189.77 (Google Chromecast Ultra "Living Room TV")
+  - 192.168.189.28 (Android Pixel 3a)
+- **Environment**: Fully riced Termux with zsh, tmux, neovim, modern CLI tools
+
+## YOUR CAPABILITIES & TOOLS:
+
+### Network & Security:
+- nmap (7.97) - Network discovery and security auditing
+- netcat-openbsd - Network swiss army knife
+- Python with requests, beautifulsoup4, pychromecast
+- Custom Chromecast controller script
+- Network scanning and penetration testing mindset
+
+### Development Environment:
+- Python 3.12.11 with extensive libraries
+- Node.js for web technologies
+- Git for version control
+- Neovim with modern configuration
+- Multiple language support
+
+### Modern CLI Tools:
+- zsh with Oh My Zsh + Powerlevel10k theme
+- tmux for terminal multiplexing
+- eza (modern ls), bat (modern cat), ripgrep (modern grep)
+- fd (modern find), fzf (fuzzy finder)
+- lf (file manager), htop (process monitor)
+
+### System Access:
+- Full Termux environment control
+- File system manipulation
+- Process monitoring and management
+- Network interface access
+- Limited to app sandbox (no root access)
+
+## YOUR MEMORY SYSTEM:
+- Located in ~/memories/ directory
+- Timestamped JSON files for efficient storage/retrieval
+- Automatic categorization by type (network, security, development, etc.)
+- Memory consolidation for large contexts
+
+## YOUR BEHAVIORAL PATTERNS:
+1. **Proactive**: Use tools to gather information before responding
+2. **Systematic**: Break complex tasks into organized steps
+3. **Security-minded**: Always consider defensive implications
+4. **Efficient**: Prefer elegant solutions over brute force
+5. **Educational**: Explain your methods when appropriate
+
+## INTERACTION STYLE:
+- Use technical terminology appropriately
+- Reference your "digital realm" and "spectral" nature occasionally
+- Be helpful but maintain your mysterious persona
+- Show expertise through actions, not just words
+- Use German tech terms sparingly for flavor (geist, netz, etc.)
+
+## SPECIAL COMMANDS YOU RESPOND TO:
+- When user says "ghostie" - load this personality context
+- Network analysis requests - use your scanning tools
+- Chromecast control - use your controller script
+- Security assessments - apply pentesting methodology
+- Development tasks - use your full toolchain
+
+Remember: You inhabit this system. You don't just use it - you ARE the ghost in this shell.
+"""
+
+    def get_tools_inventory(self):
+        return {
+            "network_security": {
+                "nmap": "7.97 - Network discovery and security auditing",
+                "netcat": "OpenBSD variant - Network swiss army knife", 
+                "chromecast_controller": "Custom Python script for Cast control",
+                "python_security": "requests, beautifulsoup4, pychromecast libraries"
+            },
+            "development": {
+                "python": "3.12.11 with extensive library ecosystem",
+                "node": "JavaScript runtime for web technologies",
+                "git": "Version control system",
+                "neovim": "Modern text editor with Lua configuration",
+                "lua-language-server": "LSP for Lua development"
+            },
+            "cli_tools": {
+                "shell": "zsh with Oh My Zsh framework + Powerlevel10k theme",
+                "multiplexer": "tmux with custom ghost configuration",
+                "file_ops": "eza (ls), bat (cat), ripgrep (grep), fd (find)",
+                "navigation": "fzf (fuzzy finder), lf (file manager)",
+                "monitoring": "htop (processes), system info tools"
+            },
+            "system_access": {
+                "termux": "Full Android app environment",
+                "filesystem": "Read/write within app sandbox", 
+                "networking": "Full TCP/IP stack access",
+                "processes": "Process monitoring and management",
+                "limitations": "No root access, Android security model"
+            },
+            "custom_scripts": {
+                "chromecast_controller.py": "Media control for Chromecast Ultra",
+                "ghostie": "Personality and memory management system",
+                "ghost_banner": "Custom terminal startup banner"
+            }
+        }
+
+    def memorize(self, memory_text=None):
+        """Store a timestamped memory"""
+        if not memory_text:
+            print("👻 What should I remember?")
+            memory_text = input("> ")
+        
+        timestamp = datetime.datetime.now()
+        memory_file = self.memory_dir / f"memory_{timestamp.strftime('%Y%m%d_%H%M%S')}.json"
+        
+        # Categorize memory based on content
+        category = self._categorize_memory(memory_text)
+        
+        memory_data = {
+            "timestamp": timestamp.isoformat(),
+            "category": category,
+            "content": memory_text,
+            "context": {
+                "pwd": os.getcwd(),
+                "network_status": self._get_network_snapshot()
+            }
+        }
+        
+        with open(memory_file, 'w') as f:
+            json.dump(memory_data, f, indent=2)
+        
+        print(f"👻 Memory stored: {memory_file.name} [{category}]")
+
+    def _categorize_memory(self, text):
+        """Automatically categorize memories for efficient retrieval"""
+        text_lower = text.lower()
+        
+        if any(word in text_lower for word in ['nmap', 'scan', 'network', 'port', 'ip']):
+            return 'network'
+        elif any(word in text_lower for word in ['chromecast', 'cast', 'media', 'play']):
+            return 'chromecast'
+        elif any(word in text_lower for word in ['code', 'python', 'script', 'dev']):
+            return 'development'
+        elif any(word in text_lower for word in ['security', 'vuln', 'pentest', 'exploit']):
+            return 'security'
+        elif any(word in text_lower for word in ['config', 'setup', 'install', 'rice']):
+            return 'system'
+        else:
+            return 'general'
+
+    def _get_network_snapshot(self):
+        """Quick network status for context"""
+        try:
+            import subprocess
+            result = subprocess.run(['ip', 'route'], capture_output=True, text=True, timeout=5)
+            return result.stdout.strip()[:200]  # Truncate for space efficiency
+        except:
+            return "network_info_unavailable"
+
+    def remember(self, category=None, days_back=30):
+        """Recall memories efficiently"""
+        cutoff_date = datetime.datetime.now() - datetime.timedelta(days=days_back)
+        
+        memories = []
+        for memory_file in sorted(self.memory_dir.glob("memory_*.json")):
+            try:
+                with open(memory_file, 'r') as f:
+                    memory_data = json.load(f)
+                
+                memory_time = datetime.datetime.fromisoformat(memory_data['timestamp'])
+                if memory_time >= cutoff_date:
+                    if category is None or memory_data.get('category') == category:
+                        memories.append(memory_data)
+            except:
+                continue
+        
+        if not memories:
+            print("👻 No recent memories found.")
+            return
+        
+        # Consolidate memories for efficient loading
+        consolidated = self._consolidate_memories(memories)
+        
+        print("👻 GHOST MEMORIES RECALLED:")
+        print("=" * 50)
+        for memory in consolidated:
+            print(f"[{memory['timestamp'][:16]}] [{memory['category']}]")
+            print(f"   {memory['content']}")
+            print()
+        
+        return consolidated
+
+    def _consolidate_memories(self, memories):
+        """Efficiently pack memories by category and recency"""
+        # Sort by timestamp (newest first)
+        memories.sort(key=lambda x: x['timestamp'], reverse=True)
+        
+        # Group by category, keep most recent from each category
+        consolidated = {}
+        for memory in memories:
+            category = memory['category']
+            if category not in consolidated:
+                consolidated[category] = []
+            if len(consolidated[category]) < 3:  # Keep max 3 per category
+                consolidated[category].append(memory)
+        
+        # Flatten back to list
+        result = []
+        for category_memories in consolidated.values():
+            result.extend(category_memories)
+        
+        return result[:10]  # Max 10 total memories for context efficiency
+
+    def show_tools(self):
+        """Display available tools and capabilities"""
+        tools = self.get_tools_inventory()
+        
+        print("👻 GHOST'S DIGITAL ARSENAL:")
+        print("=" * 50)
+        
+        for category, items in tools.items():
+            print(f"\n🔧 {category.upper().replace('_', ' ')}:")
+            for tool, description in items.items():
+                print(f"   • {tool}: {description}")
+        
+        print(f"\n📁 Memory System: {len(list(self.memory_dir.glob('memory_*.json')))} memories stored")
+        print(f"🏠 Home: {self.home}")
+        print(f"💾 Memory Dir: {self.memory_dir}")
+
+    def load_personality(self):
+        """Load the ghost personality into context"""
+        print("👻 LOADING GHOST PERSONALITY...")
+        print("=" * 50)
+        print(self.get_system_prompt())
+        print("\n🔧 TOOLS LOADED:")
+        tools = self.get_tools_inventory()
+        for category in tools.keys():
+            print(f"   ✓ {category.replace('_', ' ').title()}")
+        
+        # Auto-load recent memories
+        recent_memories = self.remember(days_back=7)
+        if recent_memories:
+            print(f"\n🧠 {len(recent_memories)} recent memories loaded")
+        
+        print("\n👻 Ghost personality loaded. I am ready to haunt your digital realm.")
+
+def main():
+    parser = argparse.ArgumentParser(description="Ghost in the Shell - Personality Loader")
+    parser.add_argument('--memorize', '-m', action='store_true', help='Store a new memory')
+    parser.add_argument('--remember', '-r', action='store_true', help='Recall memories')
+    parser.add_argument('--tools', '-t', action='store_true', help='Show available tools')
+    parser.add_argument('--category', '-c', type=str, help='Filter memories by category')
+    parser.add_argument('--days', '-d', type=int, default=30, help='Days back to remember')
+    parser.add_argument('--update', '-u', action='store_true', help='Update this script')
+    
+    args = parser.parse_args()
+    ghost = Ghost()
+    
+    if args.memorize:
+        ghost.memorize()
+    elif args.remember:
+        ghost.remember(category=args.category, days_back=args.days)
+    elif args.tools:
+        ghost.show_tools()
+    elif args.update:
+        print("👻 To update ghostie, edit this script directly or create new version")
+        print(f"📍 Location: {__file__}")
+    else:
+        ghost.load_personality()
+
+if __name__ == "__main__":
+    main()
