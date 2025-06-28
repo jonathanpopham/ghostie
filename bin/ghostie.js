@@ -93,6 +93,10 @@ Usage:
     ghostie --tools         # List available tools and capabilities
     ghostie --haunt         # Discover and profile current environment
     ghostie --version       # Show version information
+    ghostie --sync setup    # Configure cloud memory sync
+    ghostie --sync push     # Upload memories to cloud
+    ghostie --sync pull     # Download memories from cloud
+    ghostie --sync status   # Show sync status
     ghostie --update        # Update this script with new tools/memories
 
 Requirements:
