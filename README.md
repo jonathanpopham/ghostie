@@ -38,7 +38,7 @@ npm install -g @anthropic-ai/claude-code
 
 # Follow anthropic's setup instructions, then
 # Run
-    claude
+claude
 ```
 
 ### Local Development
