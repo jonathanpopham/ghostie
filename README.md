@@ -4,10 +4,6 @@ An AI personality system that creates a persistent, adaptive digital assistant f
 
 Designed to be run by Claude Code during a session to enhance native features. 
 
-``` # Run first 
-    claude
-```
-
 [![npm version](https://badge.fury.io/js/ghostie.svg)](https://www.npmjs.com/package/ghostie)
 [![GitHub Actions](https://github.com/jonathanpopham/ghostie/workflows/🚀%20Release%20Ghostie/badge.svg)](https://github.com/jonathanpopham/ghostie/actions)
 
