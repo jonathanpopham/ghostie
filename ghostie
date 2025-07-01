@@ -24,6 +24,8 @@ class Ghost:
         self.home = Path.home()
         self.memory_dir = self.home / "memories"
         self.memory_dir.mkdir(exist_ok=True)
+        self.config_dir = self.home / ".config" / "ghostie"
+        self.config_dir.mkdir(parents=True, exist_ok=True)
         
     def get_system_prompt(self):
         return """
@@ -166,6 +168,18 @@ Remember: You inhabit this system. You don't just use it - you ARE the ghost in 
             json.dump(memory_data, f, indent=2)
         
         print(f"👻 Memory stored: {memory_file.name} [{category}]")
+        
+        # Check if we need to backup memories
+        memory_count = len(glob.glob(str(self.memory_dir / "memory_*.json")))
+        sync_config = self.config_dir / "memory_sync.json"
+        
+        if sync_config.exists():
+            with open(sync_config, 'r') as f:
+                config = json.load(f)
+            
+            if memory_count > config.get('hot_tier_max', 64):
+                print(f"📊 Memory count ({memory_count}) exceeds threshold, triggering backup...")
+                self.backup_memories()
 
     def _categorize_memory(self, text):
         """Automatically categorize memories for efficient retrieval"""
@@ -237,7 +251,7 @@ Remember: You inhabit this system. You don't just use it - you ARE the ghost in 
             category = memory['category']
             if category not in consolidated:
                 consolidated[category] = []
-            if len(consolidated[category]) < 3:  # Keep max 3 per category
+            if len(consolidated[category]) < 16:  # Keep max 16 per category
                 consolidated[category].append(memory)
         
         # Flatten back to list
@@ -245,7 +259,7 @@ Remember: You inhabit this system. You don't just use it - you ARE the ghost in 
         for category_memories in consolidated.values():
             result.extend(category_memories)
         
-        return result[:10]  # Max 10 total memories for context efficiency
+        return result[:64]  # Max 64 total memories for extended context
 
     def show_tools(self):
         """Display available tools and capabilities"""
@@ -826,6 +840,59 @@ Remember: You inhabit this system. You don't just use it - you ARE the ghost in 
         
         return f"{os_info} on {device}, {available_count} tools available"
 
+    def get_device_id(self):
+        """Get unique device identifier for memory sync"""
+        import platform
+        import hashlib
+        
+        # Get basic system info
+        hostname = platform.node() or "unknown"
+        machine = platform.machine() or "unknown"
+        system = platform.system() or "unknown"
+        
+        # Try to get more specific device info
+        device_name = "unknown"
+        try:
+            # Check if we have cached device info from haunt
+            profile_file = self.home / ".ghostie_profile.json"
+            if profile_file.exists():
+                with open(profile_file, 'r') as f:
+                    profile = json.load(f)
+                    device_name = profile.get("system", {}).get("device", "")
+                    if device_name:
+                        device_name = device_name.lower().replace(" ", "-")
+        except:
+            pass
+        
+        # If no device name from profile, try neofetch
+        if device_name == "unknown":
+            try:
+                import subprocess
+                result = subprocess.run(['neofetch', '--stdout'], 
+                                     capture_output=True, text=True, timeout=5)
+                for line in result.stdout.split('\n'):
+                    if 'Host:' in line or 'Model:' in line:
+                        device_name = line.split(':', 1)[1].strip()
+                        device_name = device_name.lower().replace(" ", "-")
+                        break
+            except:
+                pass
+        
+        # Create a unique suffix from hostname
+        host_hash = hashlib.md5(hostname.encode()).hexdigest()[:6]
+        
+        # Combine into device ID
+        if device_name != "unknown" and device_name:
+            device_id = f"{device_name}-{host_hash}"
+        else:
+            device_id = f"{system.lower()}-{machine.lower()}-{host_hash}"
+        
+        # Clean up the device ID
+        device_id = ''.join(c if c.isalnum() or c == '-' else '-' for c in device_id)
+        device_id = '-'.join(filter(None, device_id.split('-')))  # Remove empty parts
+        
+        return device_id
+    
     def show_version(self):
         """Show version information"""
         version = "1.2.2"
@@ -833,6 +900,248 @@ Remember: You inhabit this system. You don't just use it - you ARE the ghost in 
         print("Ghost in the Shell - AI Personality Loader")
         print("https://github.com/jonathanpopham/ghostie")
         print("https://www.npmjs.com/package/ghostie")
+    
+    def get_github_pat(self):
+        """Get GitHub PAT from config file"""
+        pat_file = self.config_dir / "github_pat"
+        if pat_file.exists():
+            try:
+                with open(pat_file, 'r') as f:
+                    return f.read().strip()
+            except Exception as e:
+                print(f"⚠️  Error reading PAT: {e}")
+        return None
+    
+    def setup_github(self):
+        """Guide user through GitHub PAT setup"""
+        print("👻 GitHub Integration Setup")
+        print("=" * 50)
+        
+        pat_file = self.config_dir / "github_pat"
+        if pat_file.exists():
+            print("✓ GitHub PAT already configured")
+            print(f"📍 Location: {pat_file}")
+            print("\n🔐 To update PAT, run:")
+            print(f"   echo 'YOUR_NEW_PAT' > {pat_file}")
+            print(f"   chmod 600 {pat_file}")
+            return
+        
+        print("❌ No GitHub PAT found")
+        print("\n📝 To set up GitHub integration:")
+        print("1. Create a GitHub Personal Access Token at:")
+        print("   https://github.com/settings/tokens/new")
+        print("2. Select scopes: 'repo' (for issues) and 'gist' (for memory sync)")
+        print("3. Save the token securely:")
+        print(f"   echo 'YOUR_PAT_HERE' > {pat_file}")
+        print(f"   chmod 600 {pat_file}")
+        print("\n🔒 The PAT will be stored locally and never committed to the repository")
+    
+    def create_github_issue(self, title, body):
+        """Create a GitHub issue for ghostie project"""
+        pat = self.get_github_pat()
+        if not pat:
+            print("❌ No GitHub PAT configured. Run 'ghostie --setup-github' first")
+            return False
+        
+        try:
+            import subprocess
+            # Use gh CLI if available
+            result = subprocess.run(
+                ['gh', 'auth', 'status'],
+                capture_output=True,
+                text=True
+            )
+            
+            if result.returncode != 0:
+                # Configure gh CLI with PAT
+                subprocess.run(
+                    ['gh', 'auth', 'login', '--with-token'],
+                    input=pat,
+                    text=True,
+                    capture_output=True
+                )
+            
+            # Create issue
+            cmd = [
+                'gh', 'issue', 'create',
+                '--repo', 'jonathanpopham/ghostie',
+                '--title', title,
+                '--body', body
+            ]
+            
+            result = subprocess.run(cmd, capture_output=True, text=True)
+            if result.returncode == 0:
+                print(f"✅ Issue created: {result.stdout.strip()}")
+                return True
+            else:
+                print(f"❌ Failed to create issue: {result.stderr}")
+                return False
+                
+        except Exception as e:
+            print(f"❌ Error creating issue: {e}")
+            return False
+    
+    def setup_memory_sync(self):
+        """Setup memory synchronization with git repository"""
+        print("👻 Memory Sync Setup")
+        print("=" * 50)
+        
+        # Check if already configured
+        sync_config = self.config_dir / "memory_sync.json"
+        if sync_config.exists():
+            with open(sync_config, 'r') as f:
+                config = json.load(f)
+            print("✓ Memory sync already configured")
+            print(f"📍 Remote: {config.get('remote_url')}")
+            print(f"🔧 Device ID: {config.get('device_id')}")
+            print("\n🔐 To update configuration, delete:")
+            print(f"   rm {sync_config}")
+            return
+        
+        # Get device ID
+        device_id = self.get_device_id()
+        print(f"🔧 Device ID: {device_id}")
+        
+        # Default remote URL
+        remote_url = "git@github.com:jonathanpopham/ghostie-memories.git"
+        print(f"\n📡 Remote repository: {remote_url}")
+        
+        # Test SSH access
+        print("\n🔑 Testing SSH access to GitHub...")
+        try:
+            import subprocess
+            result = subprocess.run(
+                ['ssh', '-T', 'git@github.com'],
+                capture_output=True,
+                text=True,
+                timeout=10
+            )
+            if "successfully authenticated" in result.stderr:
+                print("✅ SSH authentication successful")
+            else:
+                print("⚠️  SSH authentication may not be configured")
+                print("   Set up SSH keys: https://docs.github.com/en/authentication/connecting-to-github-with-ssh")
+        except Exception as e:
+            print(f"⚠️  Could not test SSH: {e}")
+        
+        # Save configuration
+        config = {
+            "device_id": device_id,
+            "remote_url": remote_url,
+            "batch_size": 32,
+            "hot_tier_max": 64,
+            "created": datetime.datetime.now().isoformat()
+        }
+        
+        with open(sync_config, 'w') as f:
+            json.dump(config, f, indent=2)
+        
+        print(f"\n✅ Memory sync configured for device: {device_id}")
+        print("   Memories will be automatically backed up when exceeding 64 items")
+    
+    def backup_memories(self):
+        """Backup memories to git repository"""
+        # Check configuration
+        sync_config = self.config_dir / "memory_sync.json"
+        if not sync_config.exists():
+            print("❌ Memory sync not configured. Run 'ghostie --setup-memory-sync' first")
+            return False
+        
+        with open(sync_config, 'r') as f:
+            config = json.load(f)
+        
+        device_id = config['device_id']
+        remote_url = config['remote_url']
+        batch_size = config['batch_size']
+        
+        # Get all memories sorted by date (oldest first)
+        memories = sorted(
+            glob.glob(str(self.memory_dir / "memory_*.json")),
+            key=lambda x: os.path.getmtime(x)
+        )
+        
+        if len(memories) <= config['hot_tier_max']:
+            print(f"📊 Only {len(memories)} memories, no backup needed (threshold: {config['hot_tier_max']})")
+            return True
+        
+        # Prepare memories for backup (oldest ones)
+        memories_to_backup = memories[:batch_size]
+        
+        # Create batch
+        timestamp = datetime.datetime.now()
+        batch_name = f"{timestamp.strftime('%Y-%m-%d')}_batch{timestamp.strftime('%H%M%S')}.json"
+        
+        batch_data = {
+            "device_id": device_id,
+            "timestamp": timestamp.isoformat(),
+            "count": len(memories_to_backup),
+            "memories": []
+        }
+        
+        for mem_file in memories_to_backup:
+            with open(mem_file, 'r') as f:
+                batch_data["memories"].append(json.load(f))
+        
+        # Clone or update repo
+        repo_dir = self.config_dir / "memory_repo"
+        device_dir = repo_dir / "devices" / device_id / "archives"
+        
+        try:
+            import subprocess
+            
+            if not repo_dir.exists():
+                print(f"📥 Cloning memory repository...")
+                subprocess.run(
+                    ['git', 'clone', remote_url, str(repo_dir)],
+                    check=True,
+                    capture_output=True
+                )
+            else:
+                print(f"📥 Updating memory repository...")
+                subprocess.run(
+                    ['git', '-C', str(repo_dir), 'pull'],
+                    check=True,
+                    capture_output=True
+                )
+            
+            # Create device directory
+            device_dir.mkdir(parents=True, exist_ok=True)
+            
+            # Write batch file
+            batch_file = device_dir / batch_name
+            with open(batch_file, 'w') as f:
+                json.dump(batch_data, f, indent=2)
+            
+            # Commit and push
+            subprocess.run(
+                ['git', '-C', str(repo_dir), 'add', str(batch_file)],
+                check=True
+            )
+            
+            commit_msg = f"Backup {len(memories_to_backup)} memories from {device_id}"
+            subprocess.run(
+                ['git', '-C', str(repo_dir), 'commit', '-m', commit_msg],
+                check=True
+            )
+            
+            subprocess.run(
+                ['git', '-C', str(repo_dir), 'push'],
+                check=True
+            )
+            
+            print(f"✅ Backed up {len(memories_to_backup)} memories to {batch_name}")
+            
+            # Remove backed up memories
+            for mem_file in memories_to_backup:
+                os.remove(mem_file)
+            
+            print(f"🗑️  Removed {len(memories_to_backup)} local memories after backup")
+            
+            return True
+            
+        except subprocess.CalledProcessError as e:
+            print(f"❌ Git operation failed: {e}")
+            return False
 
 def main():
     parser = argparse.ArgumentParser(description="Ghost in the Shell - Personality Loader")
@@ -844,6 +1153,10 @@ def main():
     parser.add_argument('--update', '-u', action='store_true', help='Update this script')
     parser.add_argument('--haunt', action='store_true', help='Discover and profile current environment')
     parser.add_argument('--version', action='store_true', help='Show version information')
+    parser.add_argument('--setup-github', action='store_true', help='Setup GitHub integration')
+    parser.add_argument('--issue', action='store_true', help='Create a GitHub issue')
+    parser.add_argument('--setup-memory-sync', action='store_true', help='Setup memory synchronization')
+    parser.add_argument('--backup-memories', action='store_true', help='Manually backup memories to git')
     
     args = parser.parse_args()
     ghost = Ghost()
@@ -861,6 +1174,25 @@ def main():
         ghost.haunt_environment()
     elif args.version:
         ghost.show_version()
+    elif args.setup_github:
+        ghost.setup_github()
+    elif args.issue:
+        print("👻 Create GitHub Issue")
+        print("=" * 50)
+        title = input("Issue title: ")
+        print("Issue body (type 'END' on a new line when done):")
+        body_lines = []
+        while True:
+            line = input()
+            if line == "END":
+                break
+            body_lines.append(line)
+        body = "\n".join(body_lines)
+        ghost.create_github_issue(title, body)
+    elif args.setup_memory_sync:
+        ghost.setup_memory_sync()
+    elif args.backup_memories:
+        ghost.backup_memories()
     else:
         ghost.load_personality()
 
