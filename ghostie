@@ -895,7 +895,7 @@ Remember: You inhabit this system. You don't just use it - you ARE the ghost in 
     
     def show_version(self):
         """Show version information"""
-        version = "1.2.2"
+        version = "1.3.0"
         print(f"👻 Ghostie v{version}")
         print("Ghost in the Shell - AI Personality Loader")
         print("https://github.com/jonathanpopham/ghostie")
