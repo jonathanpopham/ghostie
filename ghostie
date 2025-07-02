@@ -705,6 +705,228 @@ Remember: You inhabit this system. You don't just use it - you ARE the ghost in 
         print("   - Use --graph --graph-query \"[[link]]\" to filter by wikilink")
         print("   - Memories with links will form connected clusters")
 
+    def create_memory_link(self, source_id, target_id, link_type='relates_to'):
+        """Create a link between two memories"""
+        print(f"👻 CREATING SPECTRAL LINK")
+        print("=" * 50)
+        
+        # Validate memory IDs
+        source_file = self.memory_dir / f"{source_id}.json"
+        target_file = self.memory_dir / f"{target_id}.json"
+        
+        if not source_file.exists():
+            print(f"❌ Source memory not found: {source_id}")
+            return
+        
+        if not target_file.exists():
+            print(f"❌ Target memory not found: {target_id}")
+            return
+        
+        # Load source memory
+        with open(source_file, 'r') as f:
+            source_data = json.load(f)
+        
+        # Add link to source memory
+        if 'links' not in source_data:
+            source_data['links'] = []
+        
+        # Check if link already exists
+        existing_link = next((l for l in source_data['links'] 
+                            if l.get('target') == target_id and l.get('type') == link_type), None)
+        
+        if existing_link:
+            print(f"ℹ️  Link already exists: {source_id} -{link_type}→ {target_id}")
+            return
+        
+        # Add new link
+        source_data['links'].append({
+            'target': target_id,
+            'type': link_type
+        })
+        
+        # Save updated memory
+        with open(source_file, 'w') as f:
+            json.dump(source_data, f, indent=2)
+        
+        # Update indices
+        self._update_links_index(source_data, source_id)
+        self._update_graph_index(source_data, source_id)
+        
+        print(f"✓ Link created: {source_id} -{link_type}→ {target_id}")
+        
+        # Show memory summaries
+        with open(target_file, 'r') as f:
+            target_data = json.load(f)
+        
+        print(f"\n📝 Source: {source_data['content'][:80]}...")
+        print(f"📝 Target: {target_data['content'][:80]}...")
+
+    def show_backlinks(self, memory_id):
+        """Show all memories that link to a specific memory"""
+        print(f"👻 BACKLINKS TO {memory_id}")
+        print("=" * 50)
+        
+        # Check if memory exists
+        memory_file = self.memory_dir / f"{memory_id}.json"
+        if not memory_file.exists():
+            print(f"❌ Memory not found: {memory_id}")
+            return
+        
+        # Load memory
+        with open(memory_file, 'r') as f:
+            memory_data = json.load(f)
+        
+        print(f"📝 Memory: {memory_data['content'][:100]}...")
+        
+        # Get backlinks from index
+        links_index_file = self.indices_dir / "links.json"
+        if not links_index_file.exists():
+            print("\nNo links index found.")
+            return
+        
+        with open(links_index_file, 'r') as f:
+            links_index = json.load(f)
+        
+        backlinks = links_index.get('backward', {}).get(memory_id, [])
+        
+        if not backlinks:
+            print("\n🔗 No memories link to this one.")
+            return
+        
+        print(f"\n🔗 {len(backlinks)} memories link here:")
+        
+        for i, link in enumerate(backlinks):
+            source_id = link['source']
+            link_type = link['type']
+            
+            # Load source memory
+            source_file = self.memory_dir / f"{source_id}.json"
+            if source_file.exists():
+                with open(source_file, 'r') as f:
+                    source_data = json.load(f)
+                
+                timestamp = source_data['timestamp'][:16]
+                category = source_data.get('category', 'general')
+                content = source_data['content'][:80] + "..."
+                
+                print(f"\n   [{i+1}] {source_id}")
+                print(f"       📅 {timestamp} | 📁 {category}")
+                print(f"       🔗 Link type: {link_type}")
+                print(f"       📝 {content}")
+
+    def analyze_memories(self):
+        """Analyze memory patterns and statistics"""
+        print("👻 MEMORY ANALYTICS")
+        print("=" * 50)
+        
+        # Load all indices
+        indices = {}
+        for index_name in ['tags', 'timeline', 'devices', 'graph']:
+            index_file = self.indices_dir / f"{index_name}.json"
+            if index_file.exists():
+                with open(index_file, 'r') as f:
+                    indices[index_name] = json.load(f)
+        
+        if not indices:
+            print("No memory indices found. Create some memories first!")
+            return
+        
+        # Basic statistics
+        graph = indices.get('graph', {'nodes': {}, 'edges': []})
+        timeline = indices.get('timeline', [])
+        tags_index = indices.get('tags', {})
+        devices_index = indices.get('devices', {})
+        
+        print(f"\n📊 Overall Statistics:")
+        print(f"   Total Memories: {len(graph['nodes'])}")
+        print(f"   Total Links: {len(graph['edges'])}")
+        print(f"   Unique Tags: {len(tags_index)}")
+        print(f"   Devices: {len(devices_index)}")
+        
+        # Time analysis
+        if timeline:
+            first_memory = timeline[-1]['timestamp']
+            last_memory = timeline[0]['timestamp']
+            print(f"\n📅 Timeline:")
+            print(f"   First Memory: {first_memory[:16]}")
+            print(f"   Last Memory: {last_memory[:16]}")
+            
+            # Activity by day
+            from collections import defaultdict
+            activity_by_day = defaultdict(int)
+            for entry in timeline:
+                day = entry['timestamp'][:10]
+                activity_by_day[day] += 1
+            
+            print(f"\n📈 Recent Activity:")
+            sorted_days = sorted(activity_by_day.items(), reverse=True)[:7]
+            for day, count in sorted_days:
+                bar = "█" * min(count * 2, 20)
+                print(f"   {day}: {bar} ({count})")
+        
+        # Category distribution
+        category_counts = defaultdict(int)
+        for node in graph['nodes'].values():
+            category = node.get('category', 'general')
+            category_counts[category] += 1
+        
+        print(f"\n📁 Categories:")
+        for category, count in sorted(category_counts.items(), key=lambda x: x[1], reverse=True):
+            percentage = (count / len(graph['nodes'])) * 100
+            bar = "█" * int(percentage / 5)
+            print(f"   {category:15} {bar} {count} ({percentage:.1f}%)")
+        
+        # Tag analysis
+        print(f"\n🏷️  Top Tags:")
+        tag_counts = [(tag, len(memories)) for tag, memories in tags_index.items()]
+        tag_counts.sort(key=lambda x: x[1], reverse=True)
+        
+        for tag, count in tag_counts[:10]:
+            bar = "█" * min(count * 2, 20)
+            print(f"   {tag:20} {bar} ({count})")
+        
+        # Network analysis
+        if graph['edges']:
+            # Find most connected nodes
+            connection_counts = defaultdict(int)
+            for edge in graph['edges']:
+                connection_counts[edge['source']] += 1
+                connection_counts[edge['target']] += 1
+            
+            print(f"\n🕸️  Most Connected Memories:")
+            sorted_connections = sorted(connection_counts.items(), 
+                                      key=lambda x: x[1], reverse=True)[:5]
+            
+            for memory_id, conn_count in sorted_connections:
+                memory_file = self.memory_dir / f"{memory_id}.json"
+                if memory_file.exists():
+                    with open(memory_file, 'r') as f:
+                        memory_data = json.load(f)
+                    content = memory_data['content'][:60] + "..."
+                    print(f"   {memory_id}: {conn_count} connections")
+                    print(f"      {content}")
+        
+        # Memory importance distribution
+        importance_dist = defaultdict(int)
+        for node in graph['nodes'].values():
+            importance = node.get('importance', 0.5)
+            importance_dist[importance] += 1
+        
+        if len(importance_dist) > 1:
+            print(f"\n⭐ Importance Distribution:")
+            for importance, count in sorted(importance_dist.items(), reverse=True):
+                bar = "█" * min(count, 20)
+                print(f"   {importance}: {bar} ({count})")
+        
+        print(f"\n💡 Insights:")
+        print(f"   - Most active category: {max(category_counts.items(), key=lambda x: x[1])[0] if category_counts else 'none'}")
+        print(f"   - Most used tag: {tag_counts[0][0] if tag_counts else 'none'}")
+        print(f"   - Average memories per day: {len(graph['nodes']) / max(len(activity_by_day), 1):.1f}")
+        
+        if graph['edges']:
+            avg_connections = len(graph['edges']) * 2 / len(graph['nodes'])
+            print(f"   - Average connections per memory: {avg_connections:.1f}")
+
     def show_tools(self):
         """Display available tools and capabilities"""
         tools = self.get_tools_inventory()
@@ -1603,6 +1825,10 @@ def main():
     parser.add_argument('--backup-memories', action='store_true', help='Manually backup memories to git')
     parser.add_argument('--graph', action='store_true', help='Visualize memory knowledge graph')
     parser.add_argument('--graph-query', type=str, help='Query for graph visualization (e.g., "#tag" or "[[link]]")')
+    parser.add_argument('--link', nargs=2, metavar=('SOURCE', 'TARGET'), help='Create link between two memories')
+    parser.add_argument('--link-type', type=str, default='relates_to', help='Type of link (default: relates_to)')
+    parser.add_argument('--backlinks', type=str, help='Show all memories linking to a specific memory')
+    parser.add_argument('--analyze', action='store_true', help='Analyze memory patterns and statistics')
     
     args = parser.parse_args()
     ghost = Ghost()
@@ -1641,6 +1867,12 @@ def main():
         ghost.backup_memories()
     elif args.graph:
         ghost.visualize_graph(query=args.graph_query)
+    elif args.link:
+        ghost.create_memory_link(args.link[0], args.link[1], args.link_type)
+    elif args.backlinks:
+        ghost.show_backlinks(args.backlinks)
+    elif args.analyze:
+        ghost.analyze_memories()
     else:
         ghost.load_personality()
 
