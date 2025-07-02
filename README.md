@@ -172,7 +172,12 @@ See [TODO.txt](TODO.txt) for planned features:
 ## Support
 
 If Ghostie helps with your workflow, consider supporting development:
+
 **Bitcoin**: `bc1qh9pnl3fazqa2hmznrsrwn4xgah2s56nu3egdms`
+
+Or scan this QR:
+
+![BTC QR](https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=bitcoin:bc1qh9pnl3fazqa2hmznrsrwn4xgah2s56nu3egdms)
 
 ## Links
 
