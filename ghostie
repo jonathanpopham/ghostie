@@ -462,6 +462,159 @@ Remember: You inhabit this system. You don't just use it - you ARE the ghost in 
         with open(graph_index_file, 'w') as f:
             json.dump(graph, f, indent=2)
 
+    def find_related_memories(self, memory_id, depth=1):
+        """Find memories related to a given memory using graph traversal"""
+        links_index_file = self.indices_dir / "links.json"
+        if not links_index_file.exists():
+            return []
+        
+        with open(links_index_file, 'r') as f:
+            links_index = json.load(f)
+        
+        related = set()
+        to_explore = [(memory_id, 0)]
+        explored = set()
+        
+        while to_explore:
+            current_id, current_depth = to_explore.pop(0)
+            if current_id in explored or current_depth > depth:
+                continue
+            
+            explored.add(current_id)
+            
+            # Get forward links
+            if current_id in links_index['forward']:
+                for link in links_index['forward'][current_id]:
+                    related.add((link['target'], link['type'], 'forward'))
+                    if current_depth < depth:
+                        to_explore.append((link['target'], current_depth + 1))
+            
+            # Get backward links
+            if current_id in links_index['backward']:
+                for link in links_index['backward'][current_id]:
+                    related.add((link['source'], link['type'], 'backward'))
+                    if current_depth < depth:
+                        to_explore.append((link['source'], current_depth + 1))
+        
+        return list(related)
+
+    def search_by_tag(self, tag):
+        """Find all memories with a specific tag"""
+        tags_index_file = self.indices_dir / "tags.json"
+        if not tags_index_file.exists():
+            return []
+        
+        with open(tags_index_file, 'r') as f:
+            tags_index = json.load(f)
+        
+        return tags_index.get(tag.lower(), [])
+
+    def search_by_tags(self, tags, mode='any'):
+        """Find memories matching multiple tags
+        mode: 'any' (OR) or 'all' (AND)
+        """
+        if not tags:
+            return []
+        
+        # Get memories for each tag
+        tag_memories = []
+        for tag in tags:
+            tag_memories.append(set(self.search_by_tag(tag)))
+        
+        if mode == 'any':
+            # Union of all sets
+            result = set()
+            for memories in tag_memories:
+                result.update(memories)
+            return list(result)
+        else:  # mode == 'all'
+            # Intersection of all sets
+            if not tag_memories:
+                return []
+            result = tag_memories[0]
+            for memories in tag_memories[1:]:
+                result = result.intersection(memories)
+            return list(result)
+
+    def get_memory_graph_context(self, memory_id):
+        """Get the graph context for a specific memory"""
+        graph_index_file = self.indices_dir / "graph.json"
+        if not graph_index_file.exists():
+            return None
+        
+        with open(graph_index_file, 'r') as f:
+            graph = json.load(f)
+        
+        if memory_id not in graph['nodes']:
+            return None
+        
+        # Get node info
+        node = graph['nodes'][memory_id]
+        
+        # Get edges
+        outgoing = []
+        incoming = []
+        for edge in graph['edges']:
+            if edge['source'] == memory_id:
+                outgoing.append(edge)
+            elif edge['target'] == memory_id:
+                incoming.append(edge)
+        
+        return {
+            'node': node,
+            'outgoing_edges': outgoing,
+            'incoming_edges': incoming
+        }
+
+    def search_memories_advanced(self, query):
+        """Advanced memory search supporting wikilinks and tags"""
+        import re
+        
+        # Extract wikilinks [[...]]
+        wikilinks = re.findall(r'\[\[([^\]]+)\]\]', query)
+        
+        # Extract hashtags #...
+        hashtags = re.findall(r'#(\w+)', query)
+        
+        # Extract quoted phrases "..."
+        phrases = re.findall(r'"([^"]+)"', query)
+        
+        # Remove extracted patterns from query
+        clean_query = query
+        for link in wikilinks:
+            clean_query = clean_query.replace(f'[[{link}]]', '')
+        for tag in hashtags:
+            clean_query = clean_query.replace(f'#{tag}', '')
+        for phrase in phrases:
+            clean_query = clean_query.replace(f'"{phrase}"', '')
+        
+        # Get remaining words as tags
+        words = clean_query.strip().split()
+        
+        # Combine all search terms
+        all_tags = hashtags + wikilinks + words
+        
+        if not all_tags and not phrases:
+            return []
+        
+        # Search by tags
+        memory_ids = self.search_by_tags(all_tags, mode='any') if all_tags else []
+        
+        # If we have phrases, filter by content
+        if phrases:
+            filtered_ids = []
+            for memory_id in memory_ids:
+                memory_file = self.memory_dir / f"{memory_id}.json"
+                if memory_file.exists():
+                    with open(memory_file, 'r') as f:
+                        memory_data = json.load(f)
+                    content = memory_data.get('content', '').lower()
+                    if any(phrase.lower() in content for phrase in phrases):
+                        filtered_ids.append(memory_id)
+            memory_ids = filtered_ids
+        
+        return memory_ids
+
     def show_tools(self):
         """Display available tools and capabilities"""
         tools = self.get_tools_inventory()
