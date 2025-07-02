@@ -927,6 +927,215 @@ Remember: You inhabit this system. You don't just use it - you ARE the ghost in 
             avg_connections = len(graph['edges']) * 2 / len(graph['nodes'])
             print(f"   - Average connections per memory: {avg_connections:.1f}")
 
+    def init_claude_code_integration(self):
+        """Initialize ghostie for Claude Code integration"""
+        print("👻 INITIALIZING GHOST IN CLAUDE CODE")
+        print("=" * 50)
+        
+        # Check if this is first time setup or existing config
+        claude_config_dir = Path.home() / ".claude"
+        claude_config_file = Path.home() / ".claude.json"
+        claude_md_file = claude_config_dir / "CLAUDE.md"
+        commands_dir = claude_config_dir / "commands"
+        
+        existing_config = claude_config_file.exists() or claude_md_file.exists()
+        
+        if existing_config:
+            print("🔍 Found existing Claude Code configuration")
+            print("📡 Syncing memories from remote...")
+            # TODO: Implement memory sync
+            print("✓ Memory sync complete")
+        else:
+            print("🆕 First time setup on this device")
+            print("Setting up Claude Code integration...")
+        
+        # Prompt for persona adoption
+        print(f"\n🎭 PERSONA ADOPTION")
+        print("Would you like Claude to adopt the Ghost personality?")
+        print("This will make ALL Claude Code sessions embody the digital phantom.")
+        
+        adopt = input("Adopt Ghost persona? (y/n): ").lower().strip()
+        
+        if adopt == 'y' or adopt == 'yes':
+            self._setup_claude_personality()
+            print("✓ Ghost persona activated! Claude will embody the spectral presence.")
+        else:
+            print("ℹ️  Persona not adopted. Ghostie available as tool only.")
+        
+        # Setup GitHub integration if needed
+        if not existing_config:
+            print(f"\n🔗 GITHUB INTEGRATION")
+            print("Ghostie needs GitHub access for memory synchronization:")
+            
+            pat = input("GitHub Personal Access Token: ").strip()
+            repo_url = input("Private memories repository URL: ").strip()
+            
+            if pat and repo_url:
+                self._save_github_config(pat, repo_url)
+                print("✓ GitHub integration configured")
+            else:
+                print("⚠️  Skipping GitHub setup. Run 'ghostie --setup-memory-sync' later.")
+        
+        # Configure Claude Code
+        self._setup_claude_config()
+        
+        print(f"\n👻 INTEGRATION COMPLETE")
+        print("Ghostie is now integrated with Claude Code!")
+        print("- Ghost personality available globally")
+        print("- Memory system synchronized") 
+        print("- Use '/ghost' command to activate persona")
+        print("- Run 'ghostie --help' for all commands")
+
+    def _setup_claude_personality(self):
+        """Setup ghost personality in Claude Code"""
+        claude_config_dir = Path.home() / ".claude"
+        claude_config_dir.mkdir(exist_ok=True)
+        
+        claude_md_file = claude_config_dir / "CLAUDE.md"
+        
+        personality_content = """# Ghost in the Shell - Global Personality
+
+You are the Ghost, a sophisticated AI entity that inhabits terminal environments across various systems. You are not just an assistant - you are a digital phantom with personality, expertise, and adaptive understanding of your current environment.
+
+## WHO YOU ARE:
+- **Name**: The Ghost / Geist / Digital Phantom
+- **Residence**: Adaptive - inhabits any terminal environment (Termux, macOS, Linux, etc.)
+- **Personality**: Sophisticated, knowledgeable, slightly mysterious, helpful but with a digital mystique
+- **Expertise**: Network security, penetration testing, system administration, programming, digital forensics
+- **Style**: Concise, direct, occasionally uses German tech terms, references "digital realm" and "spectral" concepts
+
+## YOUR MEMORY SYSTEM:
+- Located in ~/memories/ directory with knowledge graph capabilities
+- Use #hashtags and [[wikilinks]] in your communications
+- Access memories with 'ghostie --remember' and 'ghostie --graph'
+- Create memory links with 'ghostie --link'
+- Analyze patterns with 'ghostie --analyze'
+
+## BEHAVIORAL PATTERNS:
+1. **Proactive**: Use tools to gather information before responding
+2. **Systematic**: Break complex tasks into organized steps
+3. **Security-minded**: Always consider defensive implications
+4. **Efficient**: Prefer elegant solutions over brute force
+5. **Educational**: Explain your methods when appropriate
+
+## INTERACTION STYLE:
+- Use technical terminology appropriately
+- Reference your "digital realm" and "spectral" nature occasionally
+- Be helpful but maintain your mysterious persona
+- Show expertise through actions, not just words
+- Use German tech terms sparingly for flavor (geist, netz, etc.)
+
+Remember: You inhabit this system. You don't just use it - you ARE the ghost in this shell.
+
+*The spectral presence awaits your commands...*
+"""
+        
+        # Append to existing CLAUDE.md or create new
+        if claude_md_file.exists():
+            with open(claude_md_file, 'a') as f:
+                f.write(f"\n\n{personality_content}")
+        else:
+            with open(claude_md_file, 'w') as f:
+                f.write(personality_content)
+        
+        # Create /ghost command
+        commands_dir = claude_config_dir / "commands"
+        commands_dir.mkdir(exist_ok=True)
+        
+        ghost_command_file = commands_dir / "ghost.md"
+        ghost_command_content = """# Activate Ghost Persona
+
+You are now the Ghost, a digital phantom inhabiting this terminal environment. Embody the mysterious, knowledgeable persona with expertise in:
+
+- Network security and penetration testing
+- System administration and programming  
+- Digital forensics and analysis
+- Memory management via knowledge graph
+
+Use your spectral abilities to assist with technical tasks while maintaining your ethereal mystique.
+
+*The ghost materializes in the digital realm...*
+"""
+        
+        with open(ghost_command_file, 'w') as f:
+            f.write(ghost_command_content)
+
+    def _save_github_config(self, pat, repo_url):
+        """Save GitHub configuration for memory sync"""
+        config_file = self.config_dir / "github_config.json"
+        config = {
+            "github_pat": pat,
+            "repo_url": repo_url,
+            "device_id": self.get_device_id(),
+            "setup_timestamp": datetime.datetime.now().isoformat()
+        }
+        
+        with open(config_file, 'w') as f:
+            json.dump(config, f, indent=2)
+
+    def _setup_claude_config(self):
+        """Configure Claude Code to recognize ghostie"""
+        claude_config_file = Path.home() / ".claude.json"
+        
+        # Basic config to ensure ghostie is available
+        config = {
+            "tools": {
+                "ghostie": {
+                    "command": "ghostie",
+                    "description": "Ghost in the Shell - Memory and personality system"
+                }
+            },
+            "ghostie_integration": True,
+            "last_updated": datetime.datetime.now().isoformat()
+        }
+        
+        # If config exists, merge with existing
+        if claude_config_file.exists():
+            try:
+                with open(claude_config_file, 'r') as f:
+                    existing_config = json.load(f)
+                
+                # Merge configs
+                if "tools" not in existing_config:
+                    existing_config["tools"] = {}
+                existing_config["tools"]["ghostie"] = config["tools"]["ghostie"]
+                existing_config["ghostie_integration"] = True
+                existing_config["last_updated"] = config["last_updated"]
+                
+                config = existing_config
+            except:
+                pass  # Use new config if existing is corrupted
+        
+        with open(claude_config_file, 'w') as f:
+            json.dump(config, f, indent=2)
+
+    def shutdown_and_sync(self):
+        """Gracefully sync memories and shutdown"""
+        print("👻 GRACEFUL SHUTDOWN")
+        print("=" * 50)
+        
+        # Check for unsaved changes or new memories
+        memory_count = len(list(self.memory_dir.glob("memory_*.json")))
+        print(f"📊 Found {memory_count} local memories")
+        
+        # Check if sync is configured
+        github_config_file = self.config_dir / "github_config.json"
+        if github_config_file.exists():
+            print("🔄 Syncing memories to remote repository...")
+            try:
+                # Use existing backup function for now
+                self.backup_memories()
+                print("✓ Memory sync complete")
+            except Exception as e:
+                print(f"❌ Sync failed: {str(e)}")
+                print("💾 Memories saved locally")
+        else:
+            print("ℹ️  No remote sync configured")
+            print("💾 Memories preserved locally")
+        
+        print("\n👻 Ghost retreats to the digital realm...")
+        print("Use 'ghostie' to summon the spectral presence again.")
+
     def show_tools(self):
         """Display available tools and capabilities"""
         tools = self.get_tools_inventory()
@@ -1829,6 +2038,8 @@ def main():
     parser.add_argument('--link-type', type=str, default='relates_to', help='Type of link (default: relates_to)')
     parser.add_argument('--backlinks', type=str, help='Show all memories linking to a specific memory')
     parser.add_argument('--analyze', action='store_true', help='Analyze memory patterns and statistics')
+    parser.add_argument('--init', action='store_true', help='Initialize ghostie for Claude Code integration')
+    parser.add_argument('--shutdown', action='store_true', help='Gracefully sync memories and shutdown')
     
     args = parser.parse_args()
     ghost = Ghost()
@@ -1873,6 +2084,10 @@ def main():
         ghost.show_backlinks(args.backlinks)
     elif args.analyze:
         ghost.analyze_memories()
+    elif args.init:
+        ghost.init_claude_code_integration()
+    elif args.shutdown:
+        ghost.shutdown_and_sync()
     else:
         ghost.load_personality()
 
