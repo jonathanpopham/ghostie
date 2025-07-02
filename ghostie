@@ -1423,23 +1423,33 @@ Use your spectral abilities to assist with technical tasks while maintaining you
                     print(f"❌ Clone failed: {result.stderr}")
                     return False
                 
-                # Copy memories to repo
+                # Copy memories to unified pool with device suffixes
                 import shutil
-                device_dir = Path(temp_dir) / self.get_device_id()
-                device_dir.mkdir(exist_ok=True)
+                memories_dir = Path(temp_dir) / "memories"
+                memories_dir.mkdir(exist_ok=True)
+                
+                # Get device identifier for filename suffix
+                device_id = self.get_device_id()
+                device_name = device_id.split('-')[1:-1]  # Extract device name
+                device_suffix = '-'.join(device_name) if device_name else "unknown"
                 
                 memories_copied = 0
                 for memory_file in self.memory_dir.glob("memory_*.json"):
-                    target_file = device_dir / memory_file.name
+                    # Create unified filename: memory_timestamp_device.json
+                    base_name = memory_file.stem  # e.g., "memory_20250702_083450"
+                    target_name = f"{base_name}_{device_suffix}.json"
+                    target_file = memories_dir / target_name
                     shutil.copy2(memory_file, target_file)
                     memories_copied += 1
                 
-                # Copy indices
-                indices_dir = device_dir / ".indices"
+                # Copy indices to unified location (merge with existing)
+                unified_indices_dir = Path(temp_dir) / ".indices"
                 if self.indices_dir.exists():
-                    if indices_dir.exists():
-                        shutil.rmtree(indices_dir)
-                    shutil.copytree(self.indices_dir, indices_dir)
+                    if unified_indices_dir.exists():
+                        # Merge indices instead of replacing
+                        self._merge_indices_to_unified(self.indices_dir, unified_indices_dir)
+                    else:
+                        shutil.copytree(self.indices_dir, unified_indices_dir)
                 
                 print(f"📋 Copied {memories_copied} memories and indices")
                 
@@ -1466,6 +1476,224 @@ Use your spectral abilities to assist with technical tasks while maintaining you
             except Exception as e:
                 print(f"❌ Sync failed: {str(e)}")
                 return False
+
+    def _merge_indices_to_unified(self, local_indices_dir, unified_indices_dir):
+        """Merge local device indices with unified cross-device indices"""
+        import json
+        
+        for index_file in local_indices_dir.glob("*.json"):
+            local_file = index_file
+            unified_file = unified_indices_dir / index_file.name
+            
+            # Load local index
+            with open(local_file, 'r') as f:
+                local_data = json.load(f)
+            
+            # Load or create unified index
+            if unified_file.exists():
+                with open(unified_file, 'r') as f:
+                    unified_data = json.load(f)
+            else:
+                # Initialize based on index type
+                if index_file.name == "tags.json":
+                    unified_data = {}
+                elif index_file.name == "timeline.json":
+                    unified_data = []
+                elif index_file.name == "graph.json":
+                    unified_data = {"nodes": {}, "edges": []}
+                elif index_file.name == "devices.json":
+                    unified_data = {}
+                elif index_file.name == "links.json":
+                    unified_data = {"forward": {}, "backward": {}}
+                else:
+                    unified_data = {}
+            
+            # Merge based on index type
+            if index_file.name == "tags.json":
+                # Merge tag mappings
+                for tag, memories in local_data.items():
+                    if tag not in unified_data:
+                        unified_data[tag] = []
+                    for memory in memories:
+                        if memory not in unified_data[tag]:
+                            unified_data[tag].append(memory)
+            
+            elif index_file.name == "timeline.json":
+                # Merge timeline entries
+                existing_ids = {entry["id"] for entry in unified_data}
+                for entry in local_data:
+                    if entry["id"] not in existing_ids:
+                        unified_data.append(entry)
+                # Sort by timestamp
+                unified_data.sort(key=lambda x: x["timestamp"], reverse=True)
+            
+            elif index_file.name == "graph.json":
+                # Merge graph nodes and edges
+                unified_data["nodes"].update(local_data.get("nodes", {}))
+                existing_edges = {(e["source"], e["target"], e["type"]) for e in unified_data["edges"]}
+                for edge in local_data.get("edges", []):
+                    edge_key = (edge["source"], edge["target"], edge["type"])
+                    if edge_key not in existing_edges:
+                        unified_data["edges"].append(edge)
+            
+            elif index_file.name == "devices.json":
+                # Merge device mappings
+                for device, memories in local_data.items():
+                    if device not in unified_data:
+                        unified_data[device] = []
+                    for memory in memories:
+                        if memory not in unified_data[device]:
+                            unified_data[device].append(memory)
+            
+            elif index_file.name == "links.json":
+                # Merge forward and backward links
+                for direction in ["forward", "backward"]:
+                    if direction in local_data:
+                        if direction not in unified_data:
+                            unified_data[direction] = {}
+                        for memory_id, links in local_data[direction].items():
+                            if memory_id not in unified_data[direction]:
+                                unified_data[direction][memory_id] = []
+                            for link in links:
+                                if link not in unified_data[direction][memory_id]:
+                                    unified_data[direction][memory_id].append(link)
+            
+            # Save merged index
+            with open(unified_file, 'w') as f:
+                json.dump(unified_data, f, indent=2)
+
+    def pull_memories_from_repo(self):
+        """Pull and merge memories from the unified repository"""
+        print("👻 PULLING MEMORIES FROM SPECTRAL REPOSITORY")
+        print("=" * 50)
+        
+        # Get memory repository PAT and URL (reuse existing logic)
+        memory_pat = self.get_repo_pat("memories")
+        if not memory_pat:
+            config_file = self.config_dir / "github_config.json"
+            if config_file.exists():
+                with open(config_file, 'r') as f:
+                    config = json.load(f)
+                
+                for repo_config in config.get("repos", {}).values():
+                    for key, value in repo_config.items():
+                        if key.endswith("_pat") and ("memories" in key or "ghostie-memories" in str(repo_config.get("repo_url", ""))):
+                            memory_pat = value
+                            break
+                    if memory_pat:
+                        break
+        
+        if not memory_pat:
+            print("❌ No memory PAT configured.")
+            return False
+        
+        # Get repo URL
+        config_file = self.config_dir / "github_config.json"
+        with open(config_file, 'r') as f:
+            config = json.load(f)
+        
+        memory_repo = None
+        for repo_name, repo_config in config.get("repos", {}).items():
+            if "ghostie-memories" in repo_name.lower() or any("memory" in key for key in repo_config.keys()):
+                memory_repo = repo_config
+                break
+        
+        if not memory_repo:
+            print("❌ No memory repository configured.")
+            return False
+        
+        repo_url = memory_repo.get("repo_url", "")
+        print(f"📡 Pulling from: {repo_url}")
+        
+        # Create temp directory for git operations
+        import tempfile
+        import subprocess
+        import shutil
+        
+        with tempfile.TemporaryDirectory() as temp_dir:
+            try:
+                # Clone repo
+                clone_url = repo_url.replace("https://", f"https://oauth2:{memory_pat}@")
+                
+                print("🔄 Cloning repository...")
+                result = subprocess.run([
+                    "git", "clone", clone_url, temp_dir
+                ], capture_output=True, text=True, timeout=30)
+                
+                if result.returncode != 0:
+                    print(f"❌ Clone failed: {result.stderr}")
+                    return False
+                
+                # Pull memories from unified pool
+                remote_memories_dir = Path(temp_dir) / "memories"
+                if not remote_memories_dir.exists():
+                    print("📂 No unified memories directory found in repository")
+                    return False
+                
+                pulled_count = 0
+                current_device = self.get_device_id()
+                
+                for memory_file in remote_memories_dir.glob("memory_*.json"):
+                    # Skip files from current device to avoid conflicts
+                    if current_device.split('-')[1:-1] and '-'.join(current_device.split('-')[1:-1]) in memory_file.name:
+                        continue
+                    
+                    # Copy to local memories with original name (remove device suffix for local storage)
+                    local_name = memory_file.name
+                    if '_' in local_name:
+                        # Remove device suffix: memory_timestamp_device.json -> memory_timestamp.json
+                        parts = local_name.split('_')
+                        if len(parts) >= 4:  # memory_date_time_device.json
+                            local_name = '_'.join(parts[:-1]) + '.json'
+                    
+                    local_file = self.memory_dir / local_name
+                    if not local_file.exists():  # Don't overwrite existing memories
+                        shutil.copy2(memory_file, local_file)
+                        pulled_count += 1
+                
+                # Pull and merge indices
+                remote_indices_dir = Path(temp_dir) / ".indices"
+                if remote_indices_dir.exists() and self.indices_dir.exists():
+                    self._merge_indices_from_unified(remote_indices_dir, self.indices_dir)
+                
+                print(f"✓ Pulled {pulled_count} new memories from other devices")
+                print("🔄 Rebuilding local knowledge graph indices...")
+                
+                # Rebuild indices to include pulled memories
+                self._rebuild_all_indices()
+                
+                return True
+                
+            except Exception as e:
+                print(f"❌ Pull failed: {str(e)}")
+                return False
+
+    def _merge_indices_from_unified(self, remote_indices_dir, local_indices_dir):
+        """Merge unified remote indices with local indices"""
+        # This is the reverse of _merge_indices_to_unified
+        # For now, we'll rebuild indices locally after pulling memories
+        pass
+
+    def _rebuild_all_indices(self):
+        """Rebuild all indices from scratch based on current memories"""
+        # Clear existing indices
+        if self.indices_dir.exists():
+            import shutil
+            shutil.rmtree(self.indices_dir)
+        self.indices_dir.mkdir(exist_ok=True)
+        
+        # Rebuild indices for all memories
+        for memory_file in self.memory_dir.glob("memory_*.json"):
+            try:
+                with open(memory_file, 'r') as f:
+                    memory_data = json.load(f)
+                
+                memory_id = memory_file.stem
+                self._update_indices(memory_data, memory_id)
+            except:
+                continue  # Skip corrupted files
+        
+        print("✓ Knowledge graph indices rebuilt")
 
     def show_tools(self):
         """Display available tools and capabilities"""
@@ -2375,6 +2603,7 @@ def main():
     parser.add_argument('--list-pats', action='store_true', help='List all managed PATs by repository')
     parser.add_argument('--copy-pat', nargs=3, metavar=('SOURCE_REPO', 'TARGET_TYPE', 'TARGET_URL'), help='Copy PAT between repositories')
     parser.add_argument('--sync', action='store_true', help='Sync memories to configured repository')
+    parser.add_argument('--pull', action='store_true', help='Pull memories from other devices in repository')
     
     args = parser.parse_args()
     ghost = Ghost()
@@ -2431,6 +2660,8 @@ def main():
         ghost.copy_pat_to_repo(args.copy_pat[0], args.copy_pat[1], args.copy_pat[2])
     elif args.sync:
         ghost.sync_memories_to_repo()
+    elif args.pull:
+        ghost.pull_memories_from_repo()
     else:
         ghost.load_personality()
 
