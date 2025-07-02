@@ -2405,7 +2405,7 @@ Use your spectral abilities to assist with technical tasks while maintaining you
     
     def show_version(self):
         """Show version information"""
-        version = "1.4.1"
+        version = "1.4.2"
         print(f"👻 Ghostie v{version}")
         print("Ghost in the Shell - AI Personality Loader")
         print("https://github.com/jonathanpopham/ghostie")

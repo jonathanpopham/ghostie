@@ -60,21 +60,30 @@ chmod +x ghostie
 
 ## Quick Start
 
+### First Time Setup (Claude Code Integration)
+
 ```bash
-# First run will launch interactive setup
+# Setup ghostie for Claude Code integration
+ghostie --init
+
+# Load the ghost personality
 ghostie
+```
 
-# Discover your environment manually
-ghostie --haunt
+### Daily Workflow
 
+```bash
 # Store a memory
 ghostie --memorize "Completed important task"
 
-# Recall memories
+# Recall memories  
 ghostie --remember
 
-# Show available tools
-ghostie --tools
+# Visualize knowledge connections
+ghostie --graph
+
+# Sync memories across devices
+ghostie --push
 ```
 
 ## Commands
@@ -103,17 +112,32 @@ ghostie --tools
 - `ghostie --pull` - Pull memories from repository
 - `ghostie --pat add <name> <token>` - Add GitHub PAT
 
-## Interactive Setup
+## Multi-Device Setup
 
-On first run, Ghostie will guide you through:
+### Setting Up Additional Devices
 
-1. **Environment Discovery**: Analyze your system and detect tools
-2. **Network Exploration**: Optional network topology scanning
-3. **Memory Configuration**: Choose where to store memories
-4. **Terminal Customization**: Install modern CLI tools (Termux)
-5. **Tool Installation**: Suggest missing security/development tools
+```bash
+# On your laptop/new device:
+npm install -g ghostie
 
-Choose individual options or use `yes-to-all` for complete setup.
+# Configure with same GitHub repo
+ghostie --init
+# (Enter same PAT and repo URL when prompted)
+
+# Pull memories from other devices  
+ghostie --pull
+
+# See unified cross-device knowledge graph
+ghostie --graph
+```
+
+### Cross-Device Workflow
+
+Once setup, your memories sync automatically across devices:
+- **Pixel memories** tagged with `#device-pixel-9-pro-xl`
+- **Laptop memories** tagged with `#device-macbook-pro` 
+- **Unified search** finds memories from any device
+- **Knowledge graph** connects related memories across platforms
 
 ## Memory System
 
