@@ -1061,17 +1061,209 @@ Use your spectral abilities to assist with technical tasks while maintaining you
             f.write(ghost_command_content)
 
     def _save_github_config(self, pat, repo_url):
-        """Save GitHub configuration for memory sync"""
+        """Save GitHub configuration for memory sync with per-repo PAT management"""
         config_file = self.config_dir / "github_config.json"
-        config = {
-            "github_pat": pat,
+        
+        # Extract repo name from URL for PAT naming
+        import re
+        repo_match = re.search(r'github\.com[:/]([^/]+)/([^/.]+)', repo_url)
+        if repo_match:
+            repo_name = f"{repo_match.group(1)}_{repo_match.group(2)}"
+        else:
+            repo_name = "unknown_repo"
+        
+        # Load existing config
+        if config_file.exists():
+            with open(config_file, 'r') as f:
+                config = json.load(f)
+        else:
+            config = {
+                "device_id": self.get_device_id(),
+                "repos": {},
+                "created": datetime.datetime.now().isoformat()
+            }
+        
+        # Add/update repo configuration with memory-specific naming
+        pat_key = f"{repo_name}_memory_pat"
+        config["repos"]["memories"] = {
+            pat_key: pat,
             "repo_url": repo_url,
-            "device_id": self.get_device_id(),
-            "setup_timestamp": datetime.datetime.now().isoformat()
+            "repo_type": "memories",
+            "last_updated": datetime.datetime.now().isoformat()
         }
         
         with open(config_file, 'w') as f:
             json.dump(config, f, indent=2)
+        
+        # Add to .gitignore patterns (security)
+        self._ensure_pat_security()
+
+    def _ensure_pat_security(self):
+        """Ensure PAT files are never committed to git"""
+        gitignore_patterns = [
+            "# Ghostie Security - Never commit PATs",
+            "**/github_config.json",
+            "**/*_pat*",
+            ".config/ghostie/github_config.json"
+        ]
+        
+        # Add to global gitignore if it exists
+        global_gitignore = Path.home() / ".gitignore_global"
+        if global_gitignore.exists():
+            with open(global_gitignore, 'r') as f:
+                content = f.read()
+            
+            # Add patterns if not already present
+            for pattern in gitignore_patterns:
+                if pattern not in content:
+                    with open(global_gitignore, 'a') as f:
+                        f.write(f"\n{pattern}")
+
+    def get_repo_pat(self, repo_type="memories"):
+        """Get PAT for a specific repository type"""
+        config_file = self.config_dir / "github_config.json"
+        if not config_file.exists():
+            return None
+        
+        with open(config_file, 'r') as f:
+            config = json.load(f)
+        
+        repo_config = config.get("repos", {}).get(repo_type, {})
+        
+        # Find PAT in repo config (look for *_pat keys)
+        for key, value in repo_config.items():
+            if key.endswith("_pat"):
+                return value
+        
+        return None
+
+    def list_managed_pats(self):
+        """List all managed PATs by repository"""
+        config_file = self.config_dir / "github_config.json"
+        if not config_file.exists():
+            return {}
+        
+        with open(config_file, 'r') as f:
+            config = json.load(f)
+        
+        pats = {}
+        for repo_type, repo_config in config.get("repos", {}).items():
+            for key, value in repo_config.items():
+                if key.endswith("_pat"):
+                    repo_name = key.replace("_pat", "")
+                    pats[repo_name] = {
+                        "repo_type": repo_type,
+                        "repo_url": repo_config.get("repo_url", "unknown"),
+                        "last_updated": repo_config.get("last_updated", "unknown")
+                    }
+        
+        return pats
+
+    def copy_pat_to_repo(self, source_repo_name, target_repo_type, target_repo_url):
+        """Copy PAT from one repo configuration to another"""
+        config_file = self.config_dir / "github_config.json"
+        if not config_file.exists():
+            return False
+        
+        with open(config_file, 'r') as f:
+            config = json.load(f)
+        
+        # Find source PAT
+        source_pat = None
+        for repo_config in config.get("repos", {}).values():
+            for key, value in repo_config.items():
+                if key == f"{source_repo_name}_pat":
+                    source_pat = value
+                    break
+        
+        if not source_pat:
+            return False
+        
+        # Save to target repo
+        old_save = self._save_github_config
+        self._save_github_config(source_pat, target_repo_url)
+        
+        return True
+
+    def add_project_pat(self, project_name, repo_url, pat):
+        """Add a project PAT for a specific repository"""
+        print(f"👻 ADDING PROJECT PAT")
+        print("=" * 50)
+        
+        config_file = self.config_dir / "github_config.json"
+        
+        # Extract repo name from URL
+        import re
+        repo_match = re.search(r'github\.com[:/]([^/]+)/([^/.]+)', repo_url)
+        if repo_match:
+            repo_name = f"{repo_match.group(1)}_{repo_match.group(2)}"
+        else:
+            repo_name = project_name.replace(" ", "_").lower()
+        
+        # Load existing config
+        if config_file.exists():
+            with open(config_file, 'r') as f:
+                config = json.load(f)
+        else:
+            config = {
+                "device_id": self.get_device_id(),
+                "repos": {},
+                "created": datetime.datetime.now().isoformat()
+            }
+        
+        # Add project PAT with specific naming
+        pat_key = f"{repo_name}_project_pat"
+        config["repos"][project_name] = {
+            pat_key: pat,
+            "repo_url": repo_url,
+            "repo_type": "project",
+            "last_updated": datetime.datetime.now().isoformat()
+        }
+        
+        with open(config_file, 'w') as f:
+            json.dump(config, f, indent=2)
+        
+        # Ensure security
+        self._ensure_pat_security()
+        
+        print(f"✓ Added {pat_key} for {project_name}")
+        print(f"📍 Repository: {repo_url}")
+        print(f"🔒 PAT stored securely in {config_file}")
+
+    def show_managed_pats(self):
+        """Display all managed PATs"""
+        print("👻 MANAGED GITHUB PATs")
+        print("=" * 50)
+        
+        pats = self.list_managed_pats()
+        
+        if not pats:
+            print("No PATs configured. Use --add-pat or --init to add PATs.")
+            return
+        
+        print(f"\n🔑 Found {len(pats)} configured PATs:\n")
+        
+        for repo_name, details in pats.items():
+            repo_type = details['repo_type']
+            repo_url = details['repo_url']
+            last_updated = details['last_updated'][:16]
+            
+            # Determine PAT type
+            if repo_type == "memories":
+                pat_type = "🧠 Memory PAT"
+            elif repo_type == "project":
+                pat_type = "🛠️  Project PAT"
+            else:
+                pat_type = "❓ Unknown PAT"
+            
+            print(f"   {pat_type}")
+            print(f"   Repository: {repo_name}")
+            print(f"   URL: {repo_url}")
+            print(f"   Updated: {last_updated}")
+            print(f"   Key: {repo_name}_{repo_type}_pat")
+            print()
+        
+        print("💡 Use --copy-pat to reuse PATs across repositories")
 
     def _setup_claude_config(self):
         """Configure Claude Code to recognize ghostie"""
@@ -2040,6 +2232,9 @@ def main():
     parser.add_argument('--analyze', action='store_true', help='Analyze memory patterns and statistics')
     parser.add_argument('--init', action='store_true', help='Initialize ghostie for Claude Code integration')
     parser.add_argument('--shutdown', action='store_true', help='Gracefully sync memories and shutdown')
+    parser.add_argument('--add-pat', nargs=3, metavar=('PROJECT_NAME', 'REPO_URL', 'PAT'), help='Add project PAT for repository')
+    parser.add_argument('--list-pats', action='store_true', help='List all managed PATs by repository')
+    parser.add_argument('--copy-pat', nargs=3, metavar=('SOURCE_REPO', 'TARGET_TYPE', 'TARGET_URL'), help='Copy PAT between repositories')
     
     args = parser.parse_args()
     ghost = Ghost()
@@ -2088,6 +2283,12 @@ def main():
         ghost.init_claude_code_integration()
     elif args.shutdown:
         ghost.shutdown_and_sync()
+    elif args.add_pat:
+        ghost.add_project_pat(args.add_pat[0], args.add_pat[1], args.add_pat[2])
+    elif args.list_pats:
+        ghost.show_managed_pats()
+    elif args.copy_pat:
+        ghost.copy_pat_to_repo(args.copy_pat[0], args.copy_pat[1], args.copy_pat[2])
     else:
         ghost.load_personality()
 
