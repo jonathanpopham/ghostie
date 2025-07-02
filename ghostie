@@ -1351,6 +1351,122 @@ Use your spectral abilities to assist with technical tasks while maintaining you
         print("\n👻 Ghost retreats to the digital realm...")
         print("Use 'ghostie' to summon the spectral presence again.")
 
+    def sync_memories_to_repo(self):
+        """Sync memories to the configured memory repository"""
+        print("👻 SYNCING MEMORIES TO SPECTRAL REPOSITORY")
+        print("=" * 50)
+        
+        # Get memory repository PAT - try different approaches
+        memory_pat = self.get_repo_pat("memories")
+        if not memory_pat:
+            # Try to find any PAT that looks like it's for memories
+            config_file = self.config_dir / "github_config.json"
+            if config_file.exists():
+                with open(config_file, 'r') as f:
+                    config = json.load(f)
+                
+                for repo_config in config.get("repos", {}).values():
+                    for key, value in repo_config.items():
+                        if key.endswith("_pat") and ("memories" in key or "ghostie-memories" in str(repo_config.get("repo_url", ""))):
+                            memory_pat = value
+                            break
+                    if memory_pat:
+                        break
+        
+        if not memory_pat:
+            print("❌ No memory PAT configured. Run 'ghostie --init' to setup.")
+            return False
+        
+        # Get repo URL from config
+        config_file = self.config_dir / "github_config.json"
+        if not config_file.exists():
+            print("❌ No GitHub config found.")
+            return False
+        
+        with open(config_file, 'r') as f:
+            config = json.load(f)
+        
+        memory_repo = config.get("repos", {}).get("memories", {})
+        if not memory_repo:
+            # Try to find it in any repo with memory_pat or ghostie-memories
+            for repo_name, repo_config in config.get("repos", {}).items():
+                if "ghostie-memories" in repo_name.lower() or any("memory" in key for key in repo_config.keys()):
+                    memory_repo = repo_config
+                    break
+        
+        if not memory_repo:
+            print("❌ No memory repository configured.")
+            return False
+        
+        repo_url = memory_repo.get("repo_url", "")
+        if not repo_url:
+            print("❌ No repository URL found in config.")
+            return False
+        
+        print(f"📡 Syncing to: {repo_url}")
+        
+        # Create temp directory for git operations
+        import tempfile
+        import subprocess
+        
+        with tempfile.TemporaryDirectory() as temp_dir:
+            try:
+                # Clone or update repo
+                clone_url = repo_url.replace("https://", f"https://oauth2:{memory_pat}@")
+                
+                print("🔄 Cloning repository...")
+                result = subprocess.run([
+                    "git", "clone", clone_url, temp_dir
+                ], capture_output=True, text=True, timeout=30)
+                
+                if result.returncode != 0:
+                    print(f"❌ Clone failed: {result.stderr}")
+                    return False
+                
+                # Copy memories to repo
+                import shutil
+                device_dir = Path(temp_dir) / self.get_device_id()
+                device_dir.mkdir(exist_ok=True)
+                
+                memories_copied = 0
+                for memory_file in self.memory_dir.glob("memory_*.json"):
+                    target_file = device_dir / memory_file.name
+                    shutil.copy2(memory_file, target_file)
+                    memories_copied += 1
+                
+                # Copy indices
+                indices_dir = device_dir / ".indices"
+                if self.indices_dir.exists():
+                    if indices_dir.exists():
+                        shutil.rmtree(indices_dir)
+                    shutil.copytree(self.indices_dir, indices_dir)
+                
+                print(f"📋 Copied {memories_copied} memories and indices")
+                
+                # Commit and push
+                os.chdir(temp_dir)
+                
+                subprocess.run(["git", "config", "user.email", "ghost@spectral.realm"], check=True)
+                subprocess.run(["git", "config", "user.name", "Ghost"], check=True)
+                subprocess.run(["git", "add", "."], check=True)
+                
+                commit_msg = f"Sync memories from {self.get_device_id()}\n\n{memories_copied} memories synchronized"
+                subprocess.run(["git", "commit", "-m", commit_msg], check=True)
+                subprocess.run(["git", "push"], check=True)
+                
+                print("✓ Memories synchronized to remote repository")
+                return True
+                
+            except subprocess.TimeoutExpired:
+                print("❌ Git operation timed out")
+                return False
+            except subprocess.CalledProcessError as e:
+                print(f"❌ Git operation failed: {e}")
+                return False
+            except Exception as e:
+                print(f"❌ Sync failed: {str(e)}")
+                return False
+
     def show_tools(self):
         """Display available tools and capabilities"""
         tools = self.get_tools_inventory()
@@ -2258,6 +2374,7 @@ def main():
     parser.add_argument('--add-pat', nargs=3, metavar=('PROJECT_NAME', 'REPO_URL', 'PAT'), help='Add project PAT for repository')
     parser.add_argument('--list-pats', action='store_true', help='List all managed PATs by repository')
     parser.add_argument('--copy-pat', nargs=3, metavar=('SOURCE_REPO', 'TARGET_TYPE', 'TARGET_URL'), help='Copy PAT between repositories')
+    parser.add_argument('--sync', action='store_true', help='Sync memories to configured repository')
     
     args = parser.parse_args()
     ghost = Ghost()
@@ -2312,6 +2429,8 @@ def main():
         ghost.show_managed_pats()
     elif args.copy_pat:
         ghost.copy_pat_to_repo(args.copy_pat[0], args.copy_pat[1], args.copy_pat[2])
+    elif args.sync:
+        ghost.sync_memories_to_repo()
     else:
         ghost.load_personality()
 
