@@ -615,6 +615,96 @@ Remember: You inhabit this system. You don't just use it - you ARE the ghost in 
         
         return memory_ids
 
+    def visualize_graph(self, query=None):
+        """Visualize the memory knowledge graph"""
+        print("👻 SPECTRAL KNOWLEDGE GRAPH")
+        print("=" * 50)
+        
+        # Load graph index
+        graph_index_file = self.indices_dir / "graph.json"
+        if not graph_index_file.exists():
+            print("No memories indexed yet. Start creating memories with --memorize")
+            return
+        
+        with open(graph_index_file, 'r') as f:
+            graph = json.load(f)
+        
+        # If query provided, filter to relevant nodes
+        if query:
+            print(f"🔍 Filtering graph for: {query}")
+            memory_ids = self.search_memories_advanced(query)
+            if not memory_ids:
+                print(f"No memories found matching: {query}")
+                return
+        else:
+            memory_ids = list(graph['nodes'].keys())
+        
+        # Display statistics
+        print(f"\n📊 Graph Statistics:")
+        print(f"   Total Nodes: {len(graph['nodes'])}")
+        print(f"   Total Edges: {len(graph['edges'])}")
+        print(f"   Query Results: {len(memory_ids)} nodes")
+        
+        # Display nodes
+        print(f"\n🔮 Memory Nodes:")
+        for i, memory_id in enumerate(memory_ids[:20]):  # Show first 20
+            node = graph['nodes'].get(memory_id, {})
+            timestamp = node.get('timestamp', 'unknown')[:16]
+            category = node.get('category', 'general')
+            tags = node.get('tags', [])
+            importance = node.get('importance', 0.5)
+            
+            # Load memory content
+            memory_file = self.memory_dir / f"{memory_id}.json"
+            content = "..."
+            if memory_file.exists():
+                with open(memory_file, 'r') as f:
+                    memory_data = json.load(f)
+                content = memory_data.get('content', '')[:60] + "..."
+            
+            print(f"\n   [{i+1}] {memory_id}")
+            print(f"       📅 {timestamp} | 📁 {category} | ⭐ {importance}")
+            print(f"       🏷️  Tags: {', '.join(tags) if tags else 'none'}")
+            print(f"       📝 {content}")
+            
+            # Show connections
+            edges_out = [e for e in graph['edges'] if e['source'] == memory_id]
+            edges_in = [e for e in graph['edges'] if e['target'] == memory_id]
+            
+            if edges_out:
+                print(f"       → Outgoing: {len(edges_out)} connections")
+                for edge in edges_out[:3]:
+                    print(f"          - {edge['type']} → {edge['target']}")
+            
+            if edges_in:
+                print(f"       ← Incoming: {len(edges_in)} connections")
+                for edge in edges_in[:3]:
+                    print(f"          - {edge['source']} ← {edge['type']}")
+        
+        if len(memory_ids) > 20:
+            print(f"\n   ... and {len(memory_ids) - 20} more nodes")
+        
+        # Show tag cloud
+        print(f"\n☁️  Tag Cloud:")
+        tags_index_file = self.indices_dir / "tags.json"
+        if tags_index_file.exists():
+            with open(tags_index_file, 'r') as f:
+                tags_index = json.load(f)
+            
+            # Sort tags by frequency
+            tag_counts = [(tag, len(memories)) for tag, memories in tags_index.items()]
+            tag_counts.sort(key=lambda x: x[1], reverse=True)
+            
+            # Display top tags
+            for tag, count in tag_counts[:15]:
+                bar = "█" * min(count, 20)
+                print(f"   {tag:20} {bar} ({count})")
+        
+        print("\n💡 Tips:")
+        print("   - Use --graph --graph-query \"#tag\" to filter by tag")
+        print("   - Use --graph --graph-query \"[[link]]\" to filter by wikilink")
+        print("   - Memories with links will form connected clusters")
+
     def show_tools(self):
         """Display available tools and capabilities"""
         tools = self.get_tools_inventory()
@@ -1511,6 +1601,8 @@ def main():
     parser.add_argument('--issue', action='store_true', help='Create a GitHub issue')
     parser.add_argument('--setup-memory-sync', action='store_true', help='Setup memory synchronization')
     parser.add_argument('--backup-memories', action='store_true', help='Manually backup memories to git')
+    parser.add_argument('--graph', action='store_true', help='Visualize memory knowledge graph')
+    parser.add_argument('--graph-query', type=str, help='Query for graph visualization (e.g., "#tag" or "[[link]]")')
     
     args = parser.parse_args()
     ghost = Ghost()
@@ -1547,6 +1639,8 @@ def main():
         ghost.setup_memory_sync()
     elif args.backup_memories:
         ghost.backup_memories()
+    elif args.graph:
+        ghost.visualize_graph(query=args.graph_query)
     else:
         ghost.load_personality()
 
