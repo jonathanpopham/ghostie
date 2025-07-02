@@ -231,6 +231,29 @@ Remember: You inhabit this system. You don't just use it - you ARE the ghost in 
         if category != 'general':
             tags.append(category)
         
+        # Add device tag for multi-device tracking
+        device_id = self.get_device_id()
+        if device_id:
+            # Extract device name from device_id (e.g., "google-pixel-9-pro-xl-421aa9" -> "pixel-9-pro-xl")
+            device_name = device_id.split('-')[1:-1]  # Remove first part and hash
+            if device_name:
+                device_tag = '-'.join(device_name)
+                tags.append(f"device-{device_tag}")
+        
+        # Add project context if we can detect it
+        current_dir = os.getcwd()
+        if 'ghostie' in current_dir:
+            tags.append('project-ghostie')
+        elif 'claude' in current_dir.lower():
+            tags.append('project-claude')
+        else:
+            # Extract project name from directory
+            dir_parts = current_dir.split('/')
+            if len(dir_parts) > 2:
+                project_name = dir_parts[-1]  # Last directory name
+                if project_name and project_name not in ['home', 'root', '.', '..']:
+                    tags.append(f'project-{project_name.lower()}')
+        
         return list(set(tags))  # Remove duplicates
 
     def _get_network_snapshot(self):
