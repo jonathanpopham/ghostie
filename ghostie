@@ -158,6 +158,14 @@ Remember: You inhabit this system. You don't just use it - you ARE the ghost in 
             "timestamp": timestamp.isoformat(),
             "category": category,
             "content": memory_text,
+            "device_id": self.get_device_id(),
+            "links": [],  # Will be populated with relationships
+            "metadata": {
+                "importance": 0.5,  # Default importance
+                "access_count": 0,
+                "last_accessed": timestamp.isoformat(),
+                "tags": self._extract_tags(memory_text)
+            },
             "context": {
                 "pwd": os.getcwd(),
                 "network_status": self._get_network_snapshot()
@@ -197,6 +205,27 @@ Remember: You inhabit this system. You don't just use it - you ARE the ghost in 
             return 'system'
         else:
             return 'general'
+
+    def _extract_tags(self, text):
+        """Extract hashtags and important keywords from memory text"""
+        import re
+        
+        # Extract hashtags
+        hashtags = re.findall(r'#\w+', text)
+        
+        # Extract wikilinks
+        wikilinks = re.findall(r'\[\[([^\]]+)\]\]', text)
+        
+        # Combine and clean
+        tags = [tag.lower().strip('#') for tag in hashtags]
+        tags.extend([link.lower() for link in wikilinks])
+        
+        # Add category-based auto-tags
+        category = self._categorize_memory(text)
+        if category != 'general':
+            tags.append(category)
+        
+        return list(set(tags))  # Remove duplicates
 
     def _get_network_snapshot(self):
         """Quick network status for context"""
