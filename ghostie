@@ -1695,6 +1695,82 @@ Use your spectral abilities to assist with technical tasks while maintaining you
         
         print("✓ Knowledge graph indices rebuilt")
 
+    def show_comprehensive_help(self):
+        """Display comprehensive help and documentation"""
+        print("👻 GHOST IN THE SHELL - COMPREHENSIVE HELP")
+        print("=" * 60)
+        
+        print("\n🧠 MEMORY MANAGEMENT:")
+        print("  --memorize, -m           Store a new memory")
+        print("  --remember, -r           Recall memories")
+        print("  --category CAT           Filter memories by category")
+        print("  --days DAYS              Days back to remember (default: 30)")
+        
+        print("\n🕸️  KNOWLEDGE GRAPH:")
+        print("  --graph                  Visualize memory knowledge graph")
+        print("  --graph-query QUERY      Filter graph (e.g., '#tag' or '[[link]]')")
+        print("  --link SOURCE TARGET     Create link between memories")
+        print("  --link-type TYPE         Type of link (default: relates_to)")
+        print("  --backlinks MEMORY_ID    Show memories linking to specific memory")
+        print("  --analyze                Analyze memory patterns and statistics")
+        
+        print("\n🔄 SYNCHRONIZATION:")
+        print("  --sync                   Sync memories to configured repository")
+        print("  --pull                   Pull memories from other devices")
+        print("  --backup-memories        Manually backup memories to git")
+        
+        print("\n🔑 PAT MANAGEMENT:")
+        print("  --add-pat NAME URL PAT   Add project PAT for repository")
+        print("  --list-pats              List all managed PATs")
+        print("  --copy-pat SRC TGT URL   Copy PAT between repositories")
+        
+        print("\n⚙️  CLAUDE CODE INTEGRATION:")
+        print("  --init                   Initialize ghostie for Claude Code")
+        print("  --shutdown               Graceful sync and shutdown")
+        print("  --setup-memory-sync      Setup memory synchronization")
+        print("  --setup-github           Setup GitHub integration")
+        
+        print("\n🔧 UTILITY:")
+        print("  --tools, -t              Show available tools")
+        print("  --haunt                  Discover and profile environment")
+        print("  --version                Show version information")
+        print("  --help                   Show this help")
+        
+        print("\n📖 USAGE EXAMPLES:")
+        print("  # Basic memory operations")
+        print("  ghostie --memorize")
+        print("  ghostie --remember --category development")
+        print("  ghostie --graph --graph-query \"#cross-platform\"")
+        print()
+        print("  # Knowledge graph operations")
+        print("  ghostie --link memory1 memory2 --link-type \"continues\"")
+        print("  ghostie --backlinks memory_20250702_123456")
+        print("  ghostie --analyze")
+        print()
+        print("  # Cross-device synchronization")
+        print("  ghostie --init    # Setup on new device")
+        print("  ghostie --pull    # Get memories from other devices")
+        print("  ghostie --sync    # Push local memories")
+        print()
+        print("  # PAT management")
+        print("  ghostie --add-pat \"myproject\" \"github.com/user/repo\" \"ghp_xxx\"")
+        print("  ghostie --list-pats")
+        print()
+        print("💡 MEMORY TAGGING:")
+        print("  Use #hashtags and [[wikilinks]] in your memories")
+        print("  Auto-tagged with device-{name} and project-{name}")
+        print("  Query with --graph-query \"device-pixel #development\"")
+        print()
+        print("🌐 CROSS-DEVICE SETUP:")
+        print("  1. ghostie --init (configure PAT and repo)")
+        print("  2. ghostie --pull (download memories from other devices)")
+        print("  3. ghostie --graph (see unified knowledge web)")
+        print("  4. Perfect cross-platform development context!")
+        print()
+        print("📚 For more information:")
+        print("  https://github.com/jonathanpopham/ghostie")
+        print("  Issue tracking: Use --issue to create GitHub issues")
+
     def show_tools(self):
         """Display available tools and capabilities"""
         tools = self.get_tools_inventory()
@@ -2329,7 +2405,7 @@ Use your spectral abilities to assist with technical tasks while maintaining you
     
     def show_version(self):
         """Show version information"""
-        version = "1.3.0"
+        version = "1.4.0"
         print(f"👻 Ghostie v{version}")
         print("Ghost in the Shell - AI Personality Loader")
         print("https://github.com/jonathanpopham/ghostie")
@@ -2604,6 +2680,7 @@ def main():
     parser.add_argument('--copy-pat', nargs=3, metavar=('SOURCE_REPO', 'TARGET_TYPE', 'TARGET_URL'), help='Copy PAT between repositories')
     parser.add_argument('--sync', action='store_true', help='Sync memories to configured repository')
     parser.add_argument('--pull', action='store_true', help='Pull memories from other devices in repository')
+    parser.add_argument('--help', action='store_true', help='Show comprehensive help documentation')
     
     args = parser.parse_args()
     ghost = Ghost()
@@ -2662,6 +2739,8 @@ def main():
         ghost.sync_memories_to_repo()
     elif args.pull:
         ghost.pull_memories_from_repo()
+    elif args.help:
+        ghost.show_comprehensive_help()
     else:
         ghost.load_personality()
 

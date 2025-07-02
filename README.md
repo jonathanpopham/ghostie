@@ -6,15 +6,18 @@ Designed to be run by Claude Code during a session to enhance native features.
 
 [![npm version](https://badge.fury.io/js/ghostie.svg)](https://www.npmjs.com/package/ghostie)
 [![GitHub Actions](https://github.com/jonathanpopham/ghostie/workflows/🚀%20Release%20Ghostie/badge.svg)](https://github.com/jonathanpopham/ghostie/actions)
+[![Support](https://img.shields.io/badge/Support-₿-orange)](bitcoin:bc1qh9pnl3fazqa2hmznrsrwn4xgah2s56nu3egdms)
 
 ## Features
 
 - **Interactive First-Run Setup**: Guided environment configuration
 - **Persistent Memory**: Automatically stores and categorizes interactions
+- **Knowledge Graph**: Connect memories with links and hashtags (#tag, [[wikilink]])
+- **Claude Code Integration**: Seamless integration with Anthropic's Claude Code CLI
+- **Memory Synchronization**: Cross-device memory sync via GitHub repositories
 - **Environment Adaptation**: Discovers and adapts to your system setup
 - **Tool Integration**: Seamlessly works with your existing development tools
 - **Cross-Platform**: Works on Termux (Android), macOS, and Linux
-- **Cloud Sync**: Multi-device memory synchronization (coming soon)
 
 ## Installation
 
@@ -76,12 +79,29 @@ ghostie --tools
 
 ## Commands
 
+### Core Commands
 - `ghostie` - Load personality into context (interactive setup on first run)
 - `ghostie --memorize` - Store a memory with timestamp
 - `ghostie --remember` - Recall relevant memories
 - `ghostie --tools` - List available tools and capabilities
 - `ghostie --haunt` - Discover and profile current environment
 - `ghostie --version` - Show version information
+- `ghostie --help` - Show comprehensive help
+
+### Knowledge Graph
+- `ghostie --graph` - Visualize memory connections
+- `ghostie --link <memory1> <memory2>` - Create bidirectional links
+- `ghostie --backlinks <memory>` - Show connections to a memory
+- `ghostie --analyze` - Graph analysis and statistics
+
+### Claude Code Integration  
+- `ghostie --init` - Setup Claude Code integration
+- `ghostie --shutdown` - Cleanup integration
+
+### Memory Synchronization
+- `ghostie --push` - Sync memories to GitHub repository
+- `ghostie --pull` - Pull memories from repository
+- `ghostie --pat add <name> <token>` - Add GitHub PAT
 
 ## Interactive Setup
 
@@ -148,6 +168,11 @@ See [TODO.txt](TODO.txt) for planned features:
 - 🧠 **Skill Acquisition** (`--learn`) - Dynamic tool learning  
 - 🎯 **Mission Planning** (`--mission`) - Task workflows
 - 🌐 **Web Interface** (`--web`) - Browser dashboard
+
+## Support
+
+If Ghostie helps with your workflow, consider supporting development:
+**Bitcoin**: `bc1qh9pnl3fazqa2hmznrsrwn4xgah2s56nu3egdms`
 
 ## Links
 
