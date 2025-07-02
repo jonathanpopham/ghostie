@@ -955,22 +955,27 @@ Remember: You inhabit this system. You don't just use it - you ARE the ghost in 
         print("👻 INITIALIZING GHOST IN CLAUDE CODE")
         print("=" * 50)
         
-        # Check if this is first time setup or existing config
+        # Check if ghostie has GitHub config (not just Claude config)
         claude_config_dir = Path.home() / ".claude"
         claude_config_file = Path.home() / ".claude.json"
         claude_md_file = claude_config_dir / "CLAUDE.md"
         commands_dir = claude_config_dir / "commands"
         
-        existing_config = claude_config_file.exists() or claude_md_file.exists()
+        # Check for ghostie's GitHub config specifically
+        github_config_file = self.config_dir / "github_config.json"
+        has_github_config = github_config_file.exists() and self._get_memory_pat()
         
-        if existing_config:
-            print("🔍 Found existing Claude Code configuration")
-            print("📡 Syncing memories from remote...")
-            # TODO: Implement memory sync
-            print("✓ Memory sync complete")
+        if has_github_config:
+            print("🔍 Found existing GitHub memory configuration")
+            print("📡 Pulling memories from remote...")
+            try:
+                self.pull_memories_from_repo()
+                print("✓ Memory sync complete")
+            except Exception as e:
+                print(f"⚠️  Memory sync failed: {e}")
         else:
-            print("🆕 First time setup on this device")
-            print("Setting up Claude Code integration...")
+            print("🆕 First time setup - no GitHub memory config found")
+            print("Setting up GitHub integration for memory sync...")
         
         # Prompt for persona adoption
         print(f"\n🎭 PERSONA ADOPTION")
@@ -986,7 +991,7 @@ Remember: You inhabit this system. You don't just use it - you ARE the ghost in 
             print("ℹ️  Persona not adopted. Ghostie available as tool only.")
         
         # Setup GitHub integration if needed
-        if not existing_config:
+        if not has_github_config:
             print(f"\n🔗 GITHUB INTEGRATION")
             print("Ghostie needs GitHub access for memory synchronization:")
             
@@ -1005,9 +1010,14 @@ Remember: You inhabit this system. You don't just use it - you ARE the ghost in 
         print(f"\n👻 INTEGRATION COMPLETE")
         print("Ghostie is now integrated with Claude Code!")
         print("- Ghost personality available globally")
-        print("- Memory system synchronized") 
+        print("- Memory system ready for sync") 
         print("- Use '/ghost' command to activate persona")
-        print("- Run 'ghostie --help' for all commands")
+        print("- Run 'ghostie --guide' for all commands")
+        
+        if has_github_config:
+            print(f"\n💡 Next steps:")
+            print("- Use 'ghostie --push' to sync local memories")
+            print("- Use 'ghostie --graph' to explore knowledge connections")
 
     def _setup_claude_personality(self):
         """Setup ghost personality in Claude Code"""
@@ -2405,7 +2415,7 @@ Use your spectral abilities to assist with technical tasks while maintaining you
     
     def show_version(self):
         """Show version information"""
-        version = "1.4.2"
+        version = "1.4.3"
         print(f"👻 Ghostie v{version}")
         print("Ghost in the Shell - AI Personality Loader")
         print("https://github.com/jonathanpopham/ghostie")
