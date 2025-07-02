@@ -2680,7 +2680,7 @@ def main():
     parser.add_argument('--copy-pat', nargs=3, metavar=('SOURCE_REPO', 'TARGET_TYPE', 'TARGET_URL'), help='Copy PAT between repositories')
     parser.add_argument('--sync', action='store_true', help='Sync memories to configured repository')
     parser.add_argument('--pull', action='store_true', help='Pull memories from other devices in repository')
-    parser.add_argument('--help', action='store_true', help='Show comprehensive help documentation')
+    parser.add_argument('--guide', action='store_true', help='Show comprehensive help documentation')
     
     args = parser.parse_args()
     ghost = Ghost()
@@ -2739,7 +2739,7 @@ def main():
         ghost.sync_memories_to_repo()
     elif args.pull:
         ghost.pull_memories_from_repo()
-    elif args.help:
+    elif args.guide:
         ghost.show_comprehensive_help()
     else:
         ghost.load_personality()

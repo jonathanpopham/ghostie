@@ -86,7 +86,7 @@ ghostie --tools
 - `ghostie --tools` - List available tools and capabilities
 - `ghostie --haunt` - Discover and profile current environment
 - `ghostie --version` - Show version information
-- `ghostie --help` - Show comprehensive help
+- `ghostie --guide` - Show comprehensive help
 
 ### Knowledge Graph
 - `ghostie --graph` - Visualize memory connections
