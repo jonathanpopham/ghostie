@@ -24,6 +24,8 @@ class Ghost:
         self.home = Path.home()
         self.memory_dir = self.home / "memories"
         self.memory_dir.mkdir(exist_ok=True)
+        self.indices_dir = self.memory_dir / ".indices"
+        self.indices_dir.mkdir(exist_ok=True)
         self.config_dir = self.home / ".config" / "ghostie"
         self.config_dir.mkdir(parents=True, exist_ok=True)
         
@@ -175,6 +177,10 @@ Remember: You inhabit this system. You don't just use it - you ARE the ghost in 
         with open(memory_file, 'w') as f:
             json.dump(memory_data, f, indent=2)
         
+        # Update indices for fast graph traversal
+        memory_id = memory_file.stem  # e.g., "memory_20250702_070524"
+        self._update_indices(memory_data, memory_id)
+        
         print(f"👻 Memory stored: {memory_file.name} [{category}]")
         
         # Check if we need to backup memories
@@ -289,6 +295,172 @@ Remember: You inhabit this system. You don't just use it - you ARE the ghost in 
             result.extend(category_memories)
         
         return result[:64]  # Max 64 total memories for extended context
+
+    def _update_indices(self, memory_data, memory_id):
+        """Update all index files when a new memory is created"""
+        # Update tags index
+        self._update_tags_index(memory_data, memory_id)
+        
+        # Update timeline index
+        self._update_timeline_index(memory_data, memory_id)
+        
+        # Update device index
+        self._update_device_index(memory_data, memory_id)
+        
+        # Update links index (for future use)
+        self._update_links_index(memory_data, memory_id)
+        
+        # Update graph index
+        self._update_graph_index(memory_data, memory_id)
+
+    def _update_tags_index(self, memory_data, memory_id):
+        """Update the tags to memory mapping"""
+        tags_index_file = self.indices_dir / "tags.json"
+        
+        # Load existing index
+        if tags_index_file.exists():
+            with open(tags_index_file, 'r') as f:
+                tags_index = json.load(f)
+        else:
+            tags_index = {}
+        
+        # Add this memory to all its tags
+        tags = memory_data.get('metadata', {}).get('tags', [])
+        tags.append(memory_data.get('category', 'general'))  # Include category as a tag
+        
+        for tag in tags:
+            if tag not in tags_index:
+                tags_index[tag] = []
+            if memory_id not in tags_index[tag]:
+                tags_index[tag].append(memory_id)
+        
+        # Save updated index
+        with open(tags_index_file, 'w') as f:
+            json.dump(tags_index, f, indent=2)
+
+    def _update_timeline_index(self, memory_data, memory_id):
+        """Update chronological index"""
+        timeline_index_file = self.indices_dir / "timeline.json"
+        
+        # Load existing index
+        if timeline_index_file.exists():
+            with open(timeline_index_file, 'r') as f:
+                timeline_index = json.load(f)
+        else:
+            timeline_index = []
+        
+        # Add entry
+        timeline_entry = {
+            "id": memory_id,
+            "timestamp": memory_data['timestamp'],
+            "category": memory_data.get('category', 'general'),
+            "summary": memory_data['content'][:100]  # First 100 chars
+        }
+        
+        # Insert in sorted order
+        timeline_index.append(timeline_entry)
+        timeline_index.sort(key=lambda x: x['timestamp'], reverse=True)
+        
+        # Keep only recent entries for performance
+        timeline_index = timeline_index[:1000]
+        
+        # Save updated index
+        with open(timeline_index_file, 'w') as f:
+            json.dump(timeline_index, f, indent=2)
+
+    def _update_device_index(self, memory_data, memory_id):
+        """Update device to memory mapping"""
+        device_index_file = self.indices_dir / "devices.json"
+        
+        # Load existing index
+        if device_index_file.exists():
+            with open(device_index_file, 'r') as f:
+                device_index = json.load(f)
+        else:
+            device_index = {}
+        
+        # Add this memory to its device
+        device_id = memory_data.get('device_id', 'unknown')
+        if device_id not in device_index:
+            device_index[device_id] = []
+        if memory_id not in device_index[device_id]:
+            device_index[device_id].append(memory_id)
+        
+        # Save updated index
+        with open(device_index_file, 'w') as f:
+            json.dump(device_index, f, indent=2)
+
+    def _update_links_index(self, memory_data, memory_id):
+        """Update bidirectional links index"""
+        links_index_file = self.indices_dir / "links.json"
+        
+        # Load existing index
+        if links_index_file.exists():
+            with open(links_index_file, 'r') as f:
+                links_index = json.load(f)
+        else:
+            links_index = {"forward": {}, "backward": {}}
+        
+        # Process links
+        links = memory_data.get('links', [])
+        for link in links:
+            link_type = link.get('type', 'relates_to')
+            target = link.get('target')
+            
+            if target:
+                # Forward link
+                if memory_id not in links_index['forward']:
+                    links_index['forward'][memory_id] = []
+                links_index['forward'][memory_id].append({
+                    "target": target,
+                    "type": link_type
+                })
+                
+                # Backward link
+                if target not in links_index['backward']:
+                    links_index['backward'][target] = []
+                links_index['backward'][target].append({
+                    "source": memory_id,
+                    "type": link_type
+                })
+        
+        # Save updated index
+        with open(links_index_file, 'w') as f:
+            json.dump(links_index, f, indent=2)
+
+    def _update_graph_index(self, memory_data, memory_id):
+        """Update the full relationship graph"""
+        graph_index_file = self.indices_dir / "graph.json"
+        
+        # Load existing graph
+        if graph_index_file.exists():
+            with open(graph_index_file, 'r') as f:
+                graph = json.load(f)
+        else:
+            graph = {"nodes": {}, "edges": []}
+        
+        # Add node
+        graph['nodes'][memory_id] = {
+            "timestamp": memory_data['timestamp'],
+            "category": memory_data.get('category', 'general'),
+            "tags": memory_data.get('metadata', {}).get('tags', []),
+            "importance": memory_data.get('metadata', {}).get('importance', 0.5)
+        }
+        
+        # Add edges from links
+        links = memory_data.get('links', [])
+        for link in links:
+            target = link.get('target')
+            if target:
+                graph['edges'].append({
+                    "source": memory_id,
+                    "target": target,
+                    "type": link.get('type', 'relates_to')
+                })
+        
+        # Save updated graph
+        with open(graph_index_file, 'w') as f:
+            json.dump(graph, f, indent=2)
 
     def show_tools(self):
         """Display available tools and capabilities"""
