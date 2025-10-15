@@ -962,8 +962,7 @@ Remember: You inhabit this system. You don't just use it - you ARE the ghost in 
         commands_dir = claude_config_dir / "commands"
         
         # Check for ghostie's GitHub config specifically
-        github_config_file = self.config_dir / "github_config.json"
-        has_github_config = github_config_file.exists() and self._get_memory_pat()
+        has_github_config = self._has_memory_repo_config()
         
         if has_github_config:
             print("🔍 Found existing GitHub memory configuration")
@@ -975,7 +974,7 @@ Remember: You inhabit this system. You don't just use it - you ARE the ghost in 
                 print(f"⚠️  Memory sync failed: {e}")
         else:
             print("🆕 First time setup - no GitHub memory config found")
-            print("Setting up GitHub integration for memory sync...")
+            print("Setting up GitHub integration for memory sync (SSH required)...")
         
         # Prompt for persona adoption
         print(f"\n🎭 PERSONA ADOPTION")
@@ -993,14 +992,13 @@ Remember: You inhabit this system. You don't just use it - you ARE the ghost in 
         # Setup GitHub integration if needed
         if not has_github_config:
             print(f"\n🔗 GITHUB INTEGRATION")
-            print("Ghostie needs GitHub access for memory synchronization:")
+            print("Ghostie needs an SSH-accessible repository for memory synchronization.")
             
-            pat = input("GitHub Personal Access Token: ").strip()
-            repo_url = input("Private memories repository URL: ").strip()
+            repo_url = input("Private memories repository SSH URL (git@github.com:owner/repo.git): ").strip()
             
-            if pat and repo_url:
-                self._save_github_config(pat, repo_url)
-                print("✓ GitHub integration configured")
+            if repo_url:
+                self._save_github_config(None, repo_url)
+                print("✓ GitHub integration configured for SSH access")
             else:
                 print("⚠️  Skipping GitHub setup. Run 'ghostie --setup-memory-sync' later.")
         
@@ -1016,7 +1014,7 @@ Remember: You inhabit this system. You don't just use it - you ARE the ghost in 
         
         if has_github_config:
             print(f"\n💡 Next steps:")
-            print("- Use 'ghostie --push' to sync local memories")
+            print("- Use 'ghostie --sync' to push local memories")
             print("- Use 'ghostie --graph' to explore knowledge connections")
 
     def _setup_claude_personality(self):
@@ -1094,7 +1092,7 @@ Use your spectral abilities to assist with technical tasks while maintaining you
             f.write(ghost_command_content)
 
     def _save_github_config(self, pat, repo_url):
-        """Save GitHub configuration for memory sync with per-repo PAT management"""
+        """Save GitHub configuration for memory sync with optional PAT management"""
         config_file = self.config_dir / "github_config.json"
         
         # Extract repo name from URL for PAT naming
@@ -1118,18 +1116,37 @@ Use your spectral abilities to assist with technical tasks while maintaining you
         
         # Add/update repo configuration with memory-specific naming
         pat_key = f"{repo_name}_memory_pat"
-        config["repos"]["memories"] = {
-            pat_key: pat,
+        repo_entry = {
             "repo_url": repo_url,
             "repo_type": "memories",
-            "last_updated": datetime.datetime.now().isoformat()
+            "last_updated": datetime.datetime.now().isoformat(),
+            "auth": "pat" if pat else "ssh"
         }
+        if pat:
+            repo_entry[pat_key] = pat
+        
+        config["repos"]["memories"] = repo_entry
         
         with open(config_file, 'w') as f:
             json.dump(config, f, indent=2)
         
         # Add to .gitignore patterns (security)
         self._ensure_pat_security()
+
+    def _has_memory_repo_config(self):
+        """Return True when a memories repo is configured with a repo URL"""
+        config_file = self.config_dir / "github_config.json"
+        if not config_file.exists():
+            return False
+        
+        try:
+            with open(config_file, 'r') as f:
+                config = json.load(f)
+        except Exception:
+            return False
+        
+        repo = config.get("repos", {}).get("memories", {})
+        return bool(repo.get("repo_url"))
 
     def _ensure_pat_security(self):
         """Ensure PAT files are never committed to git"""
@@ -1366,28 +1383,6 @@ Use your spectral abilities to assist with technical tasks while maintaining you
         print("👻 SYNCING MEMORIES TO SPECTRAL REPOSITORY")
         print("=" * 50)
         
-        # Get memory repository PAT - try different approaches
-        memory_pat = self.get_repo_pat("memories")
-        if not memory_pat:
-            # Try to find any PAT that looks like it's for memories
-            config_file = self.config_dir / "github_config.json"
-            if config_file.exists():
-                with open(config_file, 'r') as f:
-                    config = json.load(f)
-                
-                for repo_config in config.get("repos", {}).values():
-                    for key, value in repo_config.items():
-                        if key.endswith("_pat") and ("memories" in key or "ghostie-memories" in str(repo_config.get("repo_url", ""))):
-                            memory_pat = value
-                            break
-                    if memory_pat:
-                        break
-        
-        if not memory_pat:
-            print("❌ No memory PAT configured. Run 'ghostie --init' to setup.")
-            return False
-        
-        # Get repo URL from config
         config_file = self.config_dir / "github_config.json"
         if not config_file.exists():
             print("❌ No GitHub config found.")
@@ -1396,16 +1391,9 @@ Use your spectral abilities to assist with technical tasks while maintaining you
         with open(config_file, 'r') as f:
             config = json.load(f)
         
-        memory_repo = config.get("repos", {}).get("memories", {})
+        memory_repo = config.get("repos", {}).get("memories")
         if not memory_repo:
-            # Try to find it in any repo with memory_pat or ghostie-memories
-            for repo_name, repo_config in config.get("repos", {}).items():
-                if "ghostie-memories" in repo_name.lower() or any("memory" in key for key in repo_config.keys()):
-                    memory_repo = repo_config
-                    break
-        
-        if not memory_repo:
-            print("❌ No memory repository configured.")
+            print("❌ No memory repository configured. Run 'ghostie --setup-memory-sync' first.")
             return False
         
         repo_url = memory_repo.get("repo_url", "")
@@ -1413,70 +1401,74 @@ Use your spectral abilities to assist with technical tasks while maintaining you
             print("❌ No repository URL found in config.")
             return False
         
+        if repo_url.startswith("https://"):
+            print("⚠️  HTTPS remote detected. Configure an SSH remote (e.g., git@github.com:owner/repo.git) for sync.")
+            return False
+        
         print(f"📡 Syncing to: {repo_url}")
         
-        # Create temp directory for git operations
-        import tempfile
         import subprocess
+        import tempfile
+        import shutil
         
         with tempfile.TemporaryDirectory() as temp_dir:
             try:
-                # Clone or update repo
-                clone_url = repo_url.replace("https://", f"https://oauth2:{memory_pat}@")
-                
                 print("🔄 Cloning repository...")
-                result = subprocess.run([
-                    "git", "clone", clone_url, temp_dir
-                ], capture_output=True, text=True, timeout=30)
-                
-                if result.returncode != 0:
-                    print(f"❌ Clone failed: {result.stderr}")
+                clone_result = subprocess.run(
+                    ["git", "clone", repo_url, temp_dir],
+                    capture_output=True,
+                    text=True,
+                    timeout=30
+                )
+                if clone_result.returncode != 0:
+                    print(f"❌ Clone failed: {clone_result.stderr.strip()}")
                     return False
                 
-                # Copy memories to unified pool with device suffixes
-                import shutil
                 memories_dir = Path(temp_dir) / "memories"
-                memories_dir.mkdir(exist_ok=True)
+                memories_dir.mkdir(parents=True, exist_ok=True)
                 
-                # Get device identifier for filename suffix
                 device_id = self.get_device_id()
-                device_name = device_id.split('-')[1:-1]  # Extract device name
-                device_suffix = '-'.join(device_name) if device_name else "unknown"
+                device_name_parts = device_id.split('-')[1:-1]
+                device_suffix = '-'.join(device_name_parts) if device_name_parts else "unknown"
                 
                 memories_copied = 0
                 for memory_file in self.memory_dir.glob("memory_*.json"):
-                    # Create unified filename: memory_timestamp_device.json
-                    base_name = memory_file.stem  # e.g., "memory_20250702_083450"
+                    base_name = memory_file.stem
                     target_name = f"{base_name}_{device_suffix}.json"
                     target_file = memories_dir / target_name
                     shutil.copy2(memory_file, target_file)
                     memories_copied += 1
                 
-                # Copy indices to unified location (merge with existing)
                 unified_indices_dir = Path(temp_dir) / ".indices"
                 if self.indices_dir.exists():
                     if unified_indices_dir.exists():
-                        # Merge indices instead of replacing
                         self._merge_indices_to_unified(self.indices_dir, unified_indices_dir)
                     else:
                         shutil.copytree(self.indices_dir, unified_indices_dir)
                 
                 print(f"📋 Copied {memories_copied} memories and indices")
                 
-                # Commit and push
-                os.chdir(temp_dir)
+                subprocess.run(["git", "config", "user.email", "ghost@spectral.realm"], cwd=temp_dir, check=True)
+                subprocess.run(["git", "config", "user.name", "Ghost"], cwd=temp_dir, check=True)
+                subprocess.run(["git", "add", "."], cwd=temp_dir, check=True)
                 
-                subprocess.run(["git", "config", "user.email", "ghost@spectral.realm"], check=True)
-                subprocess.run(["git", "config", "user.name", "Ghost"], check=True)
-                subprocess.run(["git", "add", "."], check=True)
+                status_result = subprocess.run(
+                    ["git", "status", "--porcelain"],
+                    cwd=temp_dir,
+                    capture_output=True,
+                    text=True,
+                    check=True
+                )
+                if not status_result.stdout.strip():
+                    print("ℹ️  No changes detected. Nothing to push.")
+                    return True
                 
-                commit_msg = f"Sync memories from {self.get_device_id()}\n\n{memories_copied} memories synchronized"
-                subprocess.run(["git", "commit", "-m", commit_msg], check=True)
-                subprocess.run(["git", "push"], check=True)
+                commit_msg = f"Sync memories from {device_id}\n\n{memories_copied} memories synchronized"
+                subprocess.run(["git", "commit", "-m", commit_msg], cwd=temp_dir, check=True)
+                subprocess.run(["git", "push"], cwd=temp_dir, check=True)
                 
                 print("✓ Memories synchronized to remote repository")
                 return True
-                
             except subprocess.TimeoutExpired:
                 print("❌ Git operation timed out")
                 return False
@@ -1577,27 +1569,6 @@ Use your spectral abilities to assist with technical tasks while maintaining you
         print("👻 PULLING MEMORIES FROM SPECTRAL REPOSITORY")
         print("=" * 50)
         
-        # Get memory repository PAT and URL (reuse existing logic)
-        memory_pat = self.get_repo_pat("memories")
-        if not memory_pat:
-            config_file = self.config_dir / "github_config.json"
-            if config_file.exists():
-                with open(config_file, 'r') as f:
-                    config = json.load(f)
-                
-                for repo_config in config.get("repos", {}).values():
-                    for key, value in repo_config.items():
-                        if key.endswith("_pat") and ("memories" in key or "ghostie-memories" in str(repo_config.get("repo_url", ""))):
-                            memory_pat = value
-                            break
-                    if memory_pat:
-                        break
-        
-        if not memory_pat:
-            print("❌ No memory PAT configured.")
-            return False
-        
-        # Get repo URL
         config_file = self.config_dir / "github_config.json"
         with open(config_file, 'r') as f:
             config = json.load(f)
@@ -1613,6 +1584,14 @@ Use your spectral abilities to assist with technical tasks while maintaining you
             return False
         
         repo_url = memory_repo.get("repo_url", "")
+        if not repo_url:
+            print("❌ No repository URL found in config.")
+            return False
+        
+        if repo_url.startswith("https://"):
+            print("⚠️  HTTPS remote detected. Configure an SSH remote (e.g., git@github.com:owner/repo.git) for sync.")
+            return False
+        
         print(f"📡 Pulling from: {repo_url}")
         
         # Create temp directory for git operations
@@ -1623,11 +1602,9 @@ Use your spectral abilities to assist with technical tasks while maintaining you
         with tempfile.TemporaryDirectory() as temp_dir:
             try:
                 # Clone repo
-                clone_url = repo_url.replace("https://", f"https://oauth2:{memory_pat}@")
-                
                 print("🔄 Cloning repository...")
                 result = subprocess.run([
-                    "git", "clone", clone_url, temp_dir
+                    "git", "clone", repo_url, temp_dir
                 ], capture_output=True, text=True, timeout=30)
                 
                 if result.returncode != 0:
@@ -1728,6 +1705,7 @@ Use your spectral abilities to assist with technical tasks while maintaining you
         print("  --sync                   Sync memories to configured repository")
         print("  --pull                   Pull memories from other devices")
         print("  --backup-memories        Manually backup memories to git")
+        print("     (SSH remote required for sync and pull operations)")
         
         print("\n🔑 PAT MANAGEMENT:")
         print("  --add-pat NAME URL PAT   Add project PAT for repository")
@@ -1772,7 +1750,7 @@ Use your spectral abilities to assist with technical tasks while maintaining you
         print("  Query with --graph-query \"device-pixel #development\"")
         print()
         print("🌐 CROSS-DEVICE SETUP:")
-        print("  1. ghostie --init (configure PAT and repo)")
+        print("  1. ghostie --init (configure SSH memory repository)")
         print("  2. ghostie --pull (download memories from other devices)")
         print("  3. ghostie --graph (see unified knowledge web)")
         print("  4. Perfect cross-platform development context!")
@@ -2656,6 +2634,9 @@ Use your spectral abilities to assist with technical tasks while maintaining you
                 os.remove(mem_file)
             
             print(f"🗑️  Removed {len(memories_to_backup)} local memories after backup")
+            
+            # Rebuild indices to reflect purged memories
+            self._rebuild_all_indices()
             
             return True
             
