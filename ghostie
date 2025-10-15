@@ -146,9 +146,19 @@ Remember: You inhabit this system. You don't just use it - you ARE the ghost in 
 
     def memorize(self, memory_text=None):
         """Store a timestamped memory"""
+        if memory_text is not None:
+            memory_text = memory_text.strip()
+        
         if not memory_text:
             print("👻 What should I remember?")
-            memory_text = input("> ")
+            try:
+                memory_text = input("> ").strip()
+            except EOFError:
+                memory_text = ""
+        
+        if not memory_text:
+            print("ℹ️  No memory captured. Nothing stored.")
+            return False
         
         timestamp = datetime.datetime.now()
         memory_file = self.memory_dir / f"memory_{timestamp.strftime('%Y%m%d_%H%M%S')}.json"
@@ -194,6 +204,76 @@ Remember: You inhabit this system. You don't just use it - you ARE the ghost in 
             if memory_count > config.get('hot_tier_max', 64):
                 print(f"📊 Memory count ({memory_count}) exceeds threshold, triggering backup...")
                 self.backup_memories()
+        
+        return True
+
+    def _load_memory_from_file(self, file_path):
+        """Load memory content from a file"""
+        path = Path(file_path).expanduser()
+        if not path.exists():
+            print(f"❌ Memory file not found: {path}")
+            return None
+        
+        try:
+            content = path.read_text().strip()
+        except Exception as e:
+            print(f"❌ Unable to read memory file: {e}")
+            return None
+        
+        if not content:
+            print("ℹ️  Memory file is empty. Nothing to memorize.")
+            return None
+        
+        return content
+
+    def _compose_memory_with_editor(self):
+        """Capture memory content using user's preferred editor"""
+        editor_cmd = os.environ.get("VISUAL") or os.environ.get("EDITOR")
+        if not editor_cmd:
+            editor_cmd = "nano"
+            import shutil
+            if shutil.which(editor_cmd) is None:
+                editor_cmd = "vi"
+        
+        import tempfile
+        import subprocess
+        import shlex
+        
+        with tempfile.NamedTemporaryFile(suffix=".ghostie", delete=False) as tmp:
+            temp_path = Path(tmp.name)
+        
+        try:
+            cmd = shlex.split(editor_cmd)
+        except ValueError:
+            temp_path.unlink(missing_ok=True)
+            print(f"❌ Unable to parse editor command: {editor_cmd}")
+            return None
+        
+        try:
+            subprocess.run(cmd + [str(temp_path)], check=True)
+        except subprocess.CalledProcessError as e:
+            print(f"❌ Editor exited with error (code {e.returncode}). Memory not saved.")
+            temp_path.unlink(missing_ok=True)
+            return None
+        except FileNotFoundError:
+            print(f"❌ Editor command not found: {editor_cmd}")
+            temp_path.unlink(missing_ok=True)
+            return None
+        
+        try:
+            content = temp_path.read_text().strip()
+        except Exception as e:
+            print(f"❌ Unable to read editor buffer: {e}")
+            temp_path.unlink(missing_ok=True)
+            return None
+        finally:
+            temp_path.unlink(missing_ok=True)
+        
+        if not content:
+            print("ℹ️  Editor buffer empty. Memory not stored.")
+            return None
+        
+        return content
 
     def _categorize_memory(self, text):
         """Automatically categorize memories for efficient retrieval"""
@@ -1688,7 +1768,12 @@ Use your spectral abilities to assist with technical tasks while maintaining you
         print("=" * 60)
         
         print("\n🧠 MEMORY MANAGEMENT:")
-        print("  --memorize, -m           Store a new memory")
+        print("  --memorize, -m           Store a new memory (prompt if no text provided)")
+        print("  --memorize \"text\"       Store memory using inline text")
+        print("  --memorize --memorize-editor")
+        print("                           Compose memory inside $EDITOR/$VISUAL")
+        print("  --memorize --memorize-file path/to/note.txt")
+        print("                           Import memory text from a file")
         print("  --remember, -r           Recall memories")
         print("  --category CAT           Filter memories by category")
         print("  --days DAYS              Days back to remember (default: 30)")
@@ -1727,6 +1812,9 @@ Use your spectral abilities to assist with technical tasks while maintaining you
         print("\n📖 USAGE EXAMPLES:")
         print("  # Basic memory operations")
         print("  ghostie --memorize")
+        print("  ghostie --memorize \"Reviewed network topology\"")
+        print("  ghostie --memorize --memorize-editor")
+        print("  ghostie --memorize --memorize-file ~/notes/findings.txt")
         print("  ghostie --remember --category development")
         print("  ghostie --graph --graph-query \"#cross-platform\"")
         print()
@@ -2646,7 +2734,9 @@ Use your spectral abilities to assist with technical tasks while maintaining you
 
 def main():
     parser = argparse.ArgumentParser(description="Ghost in the Shell - Personality Loader")
-    parser.add_argument('--memorize', '-m', action='store_true', help='Store a new memory')
+    parser.add_argument('--memorize', '-m', nargs='*', help='Store a new memory (optionally provide inline text)')
+    parser.add_argument('--memorize-editor', action='store_true', help='Compose memory in $EDITOR')
+    parser.add_argument('--memorize-file', type=str, help='Load memory text from file')
     parser.add_argument('--remember', '-r', action='store_true', help='Recall memories')
     parser.add_argument('--tools', '-t', action='store_true', help='Show available tools')
     parser.add_argument('--category', '-c', type=str, help='Filter memories by category')
@@ -2676,8 +2766,21 @@ def main():
     args = parser.parse_args()
     ghost = Ghost()
     
-    if args.memorize:
-        ghost.memorize()
+    if args.memorize is not None or args.memorize_editor or args.memorize_file:
+        memory_text = None
+        
+        if args.memorize_file:
+            memory_text = ghost._load_memory_from_file(args.memorize_file)
+            if memory_text is None:
+                return
+        elif args.memorize_editor:
+            memory_text = ghost._compose_memory_with_editor()
+            if memory_text is None:
+                return
+        elif args.memorize:
+            memory_text = " ".join(args.memorize).strip()
+        
+        ghost.memorize(memory_text=memory_text)
     elif args.remember:
         ghost.remember(category=args.category, days_back=args.days)
     elif args.tools:
